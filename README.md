@@ -250,7 +250,7 @@ The system supports two LLM providers:
 
 **Gemini API** (Recommended):
 - Sign up at: https://ai.google.dev/
-- Free tier available
+- Free tier available in googleai studio
 
 **Groq API**:
 - Sign up at: https://console.groq.com/
