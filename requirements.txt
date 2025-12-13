@@ -1,0 +1,13 @@
+pandas
+numpy
+scikit-learn
+sentence-transformers
+faiss-cpu
+streamlit
+plotly
+google-generativeai
+groq
+openai
+matplotlib
+seaborn
+python-dotenv
