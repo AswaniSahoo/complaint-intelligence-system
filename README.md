@@ -37,8 +37,6 @@ The **Customer Complaint Intelligence System** is a GenAI-powered application th
 
 ### Smart Search
 ![Search](screenshots/aisearch.png)
-### Search
-![Search](screenshots/aisearch.png)
 
 ## ⚡ Getting Started
 
