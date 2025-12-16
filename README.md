@@ -1,130 +1,86 @@
 # Customer Complaint Intelligence System
 
-GenAI-powered system for analyzing, clustering, and extracting insights from customer complaints using embeddings, LLMs, and vector search.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-App-red)](https://streamlit.io/)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Active-success)]()
 
-## Features
+## 🚀 Overview
 
-- Automated complaint preprocessing and cleaning
-- Semantic clustering using sentence embeddings
-- AI-powered summarization and categorization (Gemini/Groq)
-- Vector search with FAISS for complaint retrieval
-- Natural language Q&A over complaints
-- Interactive Streamlit dashboard
+The **Customer Complaint Intelligence System** is a GenAI-powered application that analyzes, clusters, and extracts insights from customer complaints. By using advanced NLP techniques like embeddings and Large Language Models (LLMs), it transforms raw text into actionable intelligence.
 
-## Tech Stack
+**Live Demo:** [Link to your deployed app here]
 
-- Python 3.10+
-- Sentence Transformers (all-MiniLM-L6-v2)
-- KMeans clustering
-- Gemini API / Groq API
-- FAISS vector database
-- Streamlit
+## ✨ Key Features
 
-## Installation
+- **Automated Cleaning**: Preprocesses raw complaint text automatically.
+- **Semantic Clustering**: Groups similar complaints using sentence embeddings and KMeans.
+- **AI Summarization**: Generates concise summaries and categories using Gemini or Groq.
+- **Smart Search**: Find specific complaints using natural language queries (RAG).
+- **Interactive Dashboard**: Explore data through a user-friendly Streamlit interface.
 
-1. Clone the repository:
+## 🛠️ Tech Stack
+
+- **Python** (Logic & Data Processing)
+- **Streamlit** (User Interface)
+- **Sentence Transformers** (Embeddings)
+- **FAISS** (Vector Database)
+- **Gemini API / Groq API** (LLM Intelligence)
+
+## 📸 Screenshots
+
+### Dashboard
+![Dashboard](screenshots/overview.png)
+
+### Clusters
+![Clusters](screenshots/clusters.png)
+
+### Smart Search
+![Search](screenshots/aisearch.png)
+### Search
+![Search](screenshots/aisearch.png)
+
+## ⚡ Getting Started
+
+### 1. Installation
+
+Clone the repository and install the required packages:
+
 ```bash
-git clone <your-repo-url>
-cd GenAi
-```
-
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
+git clone https://github.com/your-username/customer-complaint-intelligence.git
+cd customer-complaint-intelligence
 pip install -r requirements.txt
 ```
 
-4. Set up API keys:
-Create a `.env` file or set environment variables:
-```bash
-export GEMINI_API_KEY="your-gemini-api-key"
-export GROQ_API_KEY="your-groq-api-key"
-```
+### 2. Setup Keys
 
-## Usage
-
-### 1. Process Data
-
-Run the data exploration notebook or preprocessing script:
+Create a `.env` file in the root directory and add your API key:
 
 ```bash
-# Using notebook
-jupyter notebook notebooks/analysis.ipynb
-
-# Or using script
-python src/preprocess.py
+GEMINI_API_KEY="your-gemini-api-key"
 ```
 
-This will:
-- Load the raw CFPB complaints dataset
-- Filter rows with complaint narratives
-- Sample 15,000 complaints
-- Clean and normalize text
-- Save to `data/processed/processed_complaints.csv`
+### 3. Run the App
 
-### 2. Generate Embeddings
-
-```bash
-python src/embeddings.py
-```
-
-Creates sentence embeddings using `all-MiniLM-L6-v2` model.
-
-### 3. Cluster Complaints
-
-```bash
-python src/clustering.py
-```
-
-Performs KMeans clustering (6 clusters) and extracts keywords.
-
-### 4. Generate LLM Summaries (Optional)
-
-```bash
-python src/llm_utils.py
-```
-
-Uses Gemini or Groq API to:
-- Generate 1-2 line summaries
-- Assign categories (Billing/App Issue/Delivery/Support/Other)
-- Determine urgency (Low/Medium/High)
-
-### 5. Run Dashboard
+Launch the dashboard locally:
 
 ```bash
 streamlit run app/app.py
 ```
 
-The dashboard will open at `http://localhost:8501`
+Open your browser to `http://localhost:8501`.
 
-## Dashboard Pages
+## 🤝 Contributing
 
-### 1. Overview
-- Total complaints and key metrics
-- Top products and issues
-- Time trends
-- Category and urgency distribution
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
-### 2. Clusters
-- Drilldown into each cluster
-- Cluster statistics and patterns
-- Sample complaints from clusters
+## 📄 License
 
-### 3. Complaint Viewer
-- Browse all complaints
-- Filter by product, category, urgency
-- View full complaint details
+This project is licensed under the [MIT License](LICENSE).
 
-### 4. Ask AI
-- Natural language search over complaints
-- Semantic similarity matching
-- Quick insights and patterns
+## 🙏 Acknowledgments
 
+<<<<<<< HEAD
 ## Project Structure
 
 ```
@@ -268,3 +224,6 @@ Built as a GenAI + Data Science portfolio project demonstrating:
 - Vector search/RAG
 - Dashboard development
 - Real-world data handling
+=======
+Built as a portfolio project to demonstrate End-to-End GenAI development.
+>>>>>>> d926920 (Optimize project: Clean docs, add community assets & screenshots)
