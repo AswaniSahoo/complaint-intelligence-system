@@ -222,6 +222,4 @@ Built as a GenAI + Data Science portfolio project demonstrating:
 - Vector search/RAG
 - Dashboard development
 - Real-world data handling
-=======
 Built as a portfolio project to demonstrate End-to-End GenAI development.
->>>>>>> d926920 (Optimize project: Clean docs, add community assets & screenshots)
