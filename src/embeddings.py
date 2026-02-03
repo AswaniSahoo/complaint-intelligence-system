@@ -1,8 +1,12 @@
+"""
+Embedding generation module for complaint text using sentence-transformers.
+Supports GPU acceleration when CUDA is available.
+"""
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import pandas as pd
-import pickle
 import os
+import torch
 
 
 class ComplaintEmbedder:
@@ -15,8 +19,15 @@ class ComplaintEmbedder:
         Args:
             model_name: Name of the sentence-transformers model
         """
+        # Auto-detect GPU if available
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        
         print(f"Loading embedding model: {model_name}")
-        self.model = SentenceTransformer(model_name)
+        print(f"Using device: {self.device}")
+        if self.device == 'cuda':
+            print(f"GPU: {torch.cuda.get_device_name(0)}")
+        
+        self.model = SentenceTransformer(model_name, device=self.device)
         self.model_name = model_name
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
         print(f"Model loaded. Embedding dimension: {self.embedding_dim}")
@@ -82,7 +93,6 @@ def generate_embeddings(df, text_column='clean_text', output_path=None):
 
 if __name__ == "__main__":
     # Example usage
-    import os
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data_path = os.path.join(base_dir, "data", "processed", "processed_complaints.csv")
     output_path = os.path.join(base_dir, "data", "processed", "embeddings.npy")

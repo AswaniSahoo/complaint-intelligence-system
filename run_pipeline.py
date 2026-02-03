@@ -7,6 +7,10 @@ import os
 import sys
 import pandas as pd
 import numpy as np
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add src to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))

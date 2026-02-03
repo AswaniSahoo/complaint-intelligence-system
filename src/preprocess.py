@@ -37,9 +37,12 @@ def load_and_preprocess(input_path, output_path=None, sample_size=15000):
     Returns:
         DataFrame with processed complaints
     """
+    # Only load columns we need - much faster for large CSV
+    required_columns = ['Consumer complaint narrative', 'Product', 'Issue', 'Date received']
+    
     # Load data
     print(f"Loading data from {input_path}...")
-    df = pd.read_csv(input_path, low_memory=False)
+    df = pd.read_csv(input_path, usecols=required_columns, low_memory=True)
     print(f"Total rows loaded: {len(df)}")
     
     # Filter rows with complaint narrative
