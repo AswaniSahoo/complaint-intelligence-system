@@ -105,7 +105,7 @@ This project is licensed under the [MIT License](LICENSE).
 ## Author
 
 **Aswani Sahoo**  
-Aspiring Data Scientist | Machine Learning Enthusiast
+AI & ML Engineer
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://www.linkedin.com/in/aswanisahoo/)
 [![GitHub](https://img.shields.io/badge/GitHub-Follow-black)](https://github.com/AswaniSahoo)
