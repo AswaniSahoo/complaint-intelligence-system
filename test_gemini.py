@@ -23,7 +23,7 @@ def test_gemini_api():
         print("❌ ERROR: GEMINI_API_KEY not found in .env file")
         return False
     
-    print(f"\n✓ API Key found: {api_key[:20]}...")
+    print(f"\n✓ API Key found: {api_key[:8]}***")
     
     try:
         # Configure Gemini

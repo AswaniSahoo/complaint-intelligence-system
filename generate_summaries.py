@@ -4,15 +4,16 @@ This script processes complaints and adds AI-generated summaries, categories, an
 """
 
 import os
-import sys
 import pandas as pd
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Add src to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Resolve project root
+PROJECT_ROOT = Path(__file__).resolve().parent
+
 from src.llm_utils import summarize_complaints
 
 
@@ -22,7 +23,7 @@ def main():
     print("=" * 60)
     
     # Load processed data
-    data_path = os.path.join("data", "processed", "processed_complaints.csv")
+    data_path = str(PROJECT_ROOT / "data" / "processed" / "processed_complaints.csv")
     df = pd.read_csv(data_path)
     print(f"\nLoaded {len(df)} complaints")
     

@@ -1,8 +1,12 @@
+import logging
+
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 import pandas as pd
 import pickle
+
+logger = logging.getLogger(__name__)
 
 
 class ComplaintClusterer:
@@ -82,7 +86,8 @@ class ComplaintClusterer:
                 keywords = vectorizer.get_feature_names_out().tolist()
                 cluster_keywords[cluster_id] = keywords
                 print(f"  Cluster {cluster_id}: {', '.join(keywords[:5])}...")
-            except:
+            except Exception as e:
+                logger.warning(f"Failed to extract keywords for cluster {cluster_id}: {e}")
                 cluster_keywords[cluster_id] = []
         
         return cluster_keywords

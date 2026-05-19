@@ -4,11 +4,11 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-import sys
 import os
+from pathlib import Path
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Resolve project root (parent of app/)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 from src.embeddings import ComplaintEmbedder
 from src.rag import ComplaintRAG, ComplaintQA
@@ -52,7 +52,7 @@ st.markdown("""
 @st.cache_data
 def load_data():
     """Load processed complaints data."""
-    df = pd.read_csv("data/processed/processed_complaints.csv")
+    df = pd.read_csv(PROJECT_ROOT / "data" / "processed" / "processed_complaints.csv")
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
     return df
 
@@ -60,7 +60,7 @@ def load_data():
 @st.cache_resource
 def load_embeddings():
     """Load embeddings."""
-    return np.load("data/processed/embeddings.npy")
+    return np.load(PROJECT_ROOT / "data" / "processed" / "embeddings.npy")
 
 
 @st.cache_resource
@@ -259,12 +259,12 @@ def clusters_page(df):
             st.write(f"**Issue:** {row['issue']}")
             st.write(f"**Date:** {row['date'].strftime('%Y-%m-%d') if pd.notna(row['date']) else 'N/A'}")
             
-            if 'llm_summary' in row:
+            if 'llm_summary' in row.index and pd.notna(row.get('llm_summary')):
                 st.write(f"**AI Summary:** {row['llm_summary']}")
                 st.write(f"**Category:** {row.get('llm_category', 'N/A')} | **Urgency:** {row.get('llm_urgency', 'N/A')}")
             
             st.write("**Full Text:**")
-            st.text(row['complaint_text'][:500] + "..." if len(row['complaint_text']) > 500 else row['complaint_text'])
+            st.text(row['complaint_text'][:500] + "..." if len(str(row['complaint_text'])) > 500 else row['complaint_text'])
 
 
 def viewer_page(df):
@@ -347,12 +347,12 @@ def viewer_page(df):
             st.write(f"**Issue:** {row['issue']}")
             st.write(f"**Date:** {row['date'].strftime('%Y-%m-%d') if pd.notna(row['date']) else 'N/A'}")
             
-            if 'llm_summary' in row:
+            if 'llm_summary' in row.index and pd.notna(row.get('llm_summary')):
                 st.write(f"**AI Summary:** {row['llm_summary']}")
                 st.write(f"**Category:** {row.get('llm_category', 'N/A')}")
                 st.write(f"**Urgency:** {row.get('llm_urgency', 'N/A')}")
             
-            if 'cluster' in row:
+            if 'cluster' in row.index:
                 st.write(f"**Cluster:** {row['cluster']}")
 
 

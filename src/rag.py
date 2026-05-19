@@ -169,7 +169,7 @@ class ComplaintQA:
             'sample_complaints': [r['complaint_text'][:200] for r in results[:3]]
         }
         
-        if 'category' in results[0]:
+        if results and 'category' in results[0]:
             categories = [r['category'] for r in results]
             urgencies = [r['urgency'] for r in results]
             insights['top_categories'] = pd.Series(categories).value_counts().to_dict()

@@ -9,12 +9,12 @@ from openai import OpenAI
 class LLMSummarizer:
     """Summarize and categorize complaints using various LLM APIs."""
     
-    def __init__(self, provider='ollama', api_key=None):
+    def __init__(self, provider='gemini', api_key=None):
         """
         Initialize LLM client.
         
         Args:
-            provider: 'gemini', 'groq', or 'ollama'
+            provider: 'gemini', 'groq', or 'together'
             api_key: API key (or reads from environment)
         """
         self.provider = provider.lower()
@@ -35,19 +35,19 @@ class LLMSummarizer:
             self.model_name = 'llama-3.1-8b-instant'
             print("Initialized Groq API")
         
-        elif self.provider == 'ollama':
-            api_key = api_key or os.getenv('OLLAMA_API_KEY')
+        elif self.provider == 'together':
+            api_key = api_key or os.getenv('TOGETHER_API_KEY')
             if not api_key:
-                raise ValueError("OLLAMA_API_KEY not found in environment")
+                raise ValueError("TOGETHER_API_KEY not found in environment")
             self.client = OpenAI(
                 api_key=api_key,
                 base_url="https://api.together.xyz/v1"
             )
             self.model_name = 'mistralai/Mixtral-8x7B-Instruct-v0.1'
-            print("Initialized Ollama/Together API")
+            print("Initialized Together API")
         
         else:
-            raise ValueError("Provider must be 'gemini', 'groq', or 'ollama'")
+            raise ValueError("Provider must be 'gemini', 'groq', or 'together'")
     
     def create_prompt(self, complaint_text):
         """Create prompt for summarization and categorization."""
@@ -114,8 +114,8 @@ Urgency: [urgency level]"""
             print(f"Error with Groq: {e}")
             return {'summary': complaint_text[:100], 'category': 'Other', 'urgency': 'Medium'}
     
-    def process_complaint_ollama(self, complaint_text):
-        """Process complaint using Ollama/Together API."""
+    def process_complaint_together(self, complaint_text):
+        """Process complaint using Together API."""
         prompt = self.create_prompt(complaint_text)
         
         try:
@@ -128,7 +128,7 @@ Urgency: [urgency level]"""
             parsed = self.parse_response(response.choices[0].message.content)
             return parsed
         except Exception as e:
-            print(f"Error with Ollama: {e}")
+            print(f"Error with Together API: {e}")
             return {'summary': complaint_text[:100], 'category': 'Other', 'urgency': 'Medium'}
     
     def process_complaint(self, complaint_text):
@@ -138,7 +138,7 @@ Urgency: [urgency level]"""
         elif self.provider == 'groq':
             return self.process_complaint_groq(complaint_text)
         else:
-            return self.process_complaint_ollama(complaint_text)
+            return self.process_complaint_together(complaint_text)
     
     def process_batch(self, complaints, batch_size=10, delay=1.0):
         """
