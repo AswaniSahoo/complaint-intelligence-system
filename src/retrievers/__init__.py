@@ -8,3 +8,29 @@ Provides multiple retrieval approaches:
     - HyDERetriever: Hypothetical Document Embeddings
     - TreeRetriever: PageIndex-inspired hierarchical reasoning-based retrieval
 """
+
+from src.retrievers.base import BaseRetriever, RetrievalResult
+from src.retrievers.vector_retriever import VectorRetriever
+from src.retrievers.bm25_retriever import BM25Retriever
+from src.retrievers.hybrid_retriever import HybridRetriever
+from src.retrievers.hyde_retriever import HyDERetriever
+from src.retrievers.tree_retriever import TreeRetriever
+
+ALL_RETRIEVERS = {
+    "vector": VectorRetriever,
+    "bm25": BM25Retriever,
+    "hybrid": HybridRetriever,
+    "hyde": HyDERetriever,
+    "tree": TreeRetriever,
+}
+
+__all__ = [
+    "BaseRetriever",
+    "RetrievalResult",
+    "VectorRetriever",
+    "BM25Retriever",
+    "HybridRetriever",
+    "HyDERetriever",
+    "TreeRetriever",
+    "ALL_RETRIEVERS",
+]

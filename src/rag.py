@@ -1,8 +1,14 @@
+import logging
+
 import faiss
 import numpy as np
 import pandas as pd
 import pickle
 import os
+
+from src.retrievers.base import BaseRetriever, RetrievalResult
+
+logger = logging.getLogger(__name__)
 
 
 class ComplaintRAG:
@@ -128,7 +134,7 @@ class ComplaintQA:
             }
             
             # Add LLM fields if available
-            if 'llm_summary' in complaint:
+            if 'llm_summary' in complaint.index and pd.notna(complaint.get('llm_summary')):
                 result['summary'] = complaint['llm_summary']
                 result['category'] = complaint.get('llm_category', 'Other')
                 result['urgency'] = complaint.get('llm_urgency', 'Medium')
@@ -194,21 +200,70 @@ def build_rag_system(embeddings, df, embedding_dim=384):
     return rag
 
 
+class RetrieverQA:
+    """
+    Unified QA system that works with any BaseRetriever implementation.
+
+    This is the recommended interface for new code — it wraps any retriever
+    and provides a consistent answer_query / get_insights API.
+    """
+
+    def __init__(self, retriever: BaseRetriever, df: pd.DataFrame):
+        self.retriever = retriever
+        self.df = df
+
+    def answer_query(self, query: str, k: int = 5):
+        """Query any retriever and return standardized results."""
+        results, latency_ms = self.retriever.retrieve_with_timing(query, k=k)
+
+        response = {
+            "query": query,
+            "retriever": self.retriever.name,
+            "results": [r.to_dict() for r in results],
+            "count": len(results),
+            "latency_ms": round(latency_ms, 2),
+        }
+        return response
+
+    def get_insights(self, query: str, k: int = 10):
+        """Get aggregate insights from retrieval results."""
+        response = self.answer_query(query, k=k)
+        results = response["results"]
+
+        if not results:
+            return {"query": query, "total_found": 0}
+
+        products = [r["product"] for r in results]
+        issues = [r["issue"] for r in results]
+
+        insights = {
+            "query": query,
+            "retriever": self.retriever.name,
+            "total_found": len(results),
+            "latency_ms": response["latency_ms"],
+            "top_products": pd.Series(products).value_counts().head(3).to_dict(),
+            "top_issues": pd.Series(issues).value_counts().head(3).to_dict(),
+            "sample_complaints": [r["text"][:200] for r in results[:3]],
+        }
+        return insights
+
+
 if __name__ == "__main__":
-    from embeddings import ComplaintEmbedder
-    
-    # Example usage
-    df = pd.read_csv("../data/processed/processed_complaints.csv")
-    embeddings = np.load("../data/processed/embeddings.npy")
-    
-    # Build RAG
+    from pathlib import Path
+    from src.embeddings import ComplaintEmbedder
+
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    data_path = PROJECT_ROOT / "data" / "processed" / "processed_complaints.csv"
+    emb_path = PROJECT_ROOT / "data" / "processed" / "embeddings.npy"
+
+    df = pd.read_csv(data_path)
+    embeddings = np.load(emb_path)
+
+    # Build RAG (legacy)
     rag = build_rag_system(embeddings, df)
-    
-    # Create QA system
     embedder = ComplaintEmbedder()
     qa = ComplaintQA(rag, embedder, df)
-    
-    # Test query
+
     response = qa.answer_query("credit card billing issues", k=5)
     print(f"\nFound {response['count']} relevant complaints")
     for i, result in enumerate(response['results'], 1):
