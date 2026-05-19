@@ -1,0 +1,49 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Create minimal test data
+        run: |
+          python -c "
+          import pandas as pd, numpy as np
+          df = pd.DataFrame({
+              'complaint_text': ['test complaint'] * 10,
+              'clean_text': ['test complaint'] * 10,
+              'product': ['Credit card'] * 5 + ['Mortgage'] * 5,
+              'issue': ['Billing'] * 5 + ['Late fees'] * 5,
+              'date': ['2024-01-01'] * 10,
+              'cluster': [0]*5 + [1]*5,
+          })
+          import os; os.makedirs('data/processed', exist_ok=True)
+          df.to_csv('data/processed/processed_complaints.csv', index=False)
+          np.save('data/processed/embeddings.npy', np.random.randn(10, 384).astype('float32'))
+          print('Test data created')
+          "
+
+      - name: Run tests
+        run: python -m pytest tests/ -v --tb=short

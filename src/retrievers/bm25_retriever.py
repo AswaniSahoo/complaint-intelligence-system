@@ -49,19 +49,28 @@ class BM25Retriever(BaseRetriever):
         logger.info("BM25Retriever: tokenizing %d documents...", len(self.df))
         self.corpus_tokens = [tokenize(str(text)) for text in self.df[text_column]]
 
-        # Filter out empty token lists to avoid BM25 issues
+        # Filter out empty token lists to avoid BM25 ZeroDivisionError
         valid_mask = [len(tokens) > 0 for tokens in self.corpus_tokens]
         if not all(valid_mask):
             n_empty = sum(1 for v in valid_mask if not v)
             logger.warning("BM25Retriever: %d documents had empty tokens (skipped in index)", n_empty)
+
+        # BM25Okapi crashes on empty corpus — guard against it
+        non_empty_tokens = [t for t in self.corpus_tokens if len(t) > 0]
+        if not non_empty_tokens:
+            logger.warning("BM25Retriever: no valid documents to index")
+            self.bm25 = None
+            return
 
         self.bm25 = BM25Okapi(self.corpus_tokens)
         logger.info("BM25Retriever: index built with %d documents", len(self.corpus_tokens))
 
     def retrieve(self, query: str, k: int = 5) -> List[RetrievalResult]:
         """Retrieve top-k complaints by BM25 score."""
-        if self.bm25 is None or self.df is None:
+        if self.df is None:
             raise RuntimeError("Index not built. Call build_index() first.")
+        if self.bm25 is None:
+            return []  # build_index ran but corpus was empty
         if not query or not query.strip():
             logger.warning("BM25Retriever: empty query received")
             return []

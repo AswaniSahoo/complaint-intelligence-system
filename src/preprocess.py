@@ -4,8 +4,11 @@ import re
 
 def clean_text(text):
     """Clean and normalize complaint text."""
-    if pd.isna(text):
-        return ""
+    try:
+        if pd.isna(text):
+            return ""
+    except (ValueError, TypeError):
+        pass  # non-scalar input (list, array, etc.) — convert to str below
     
     # Convert to string and lowercase
     text = str(text).lower()
