@@ -5,12 +5,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import os
+import json
 from pathlib import Path
 
 # Resolve project root (parent of app/)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-from src.embeddings import ComplaintEmbedder
+from src.embeddings import ComplaintEmbedder, EMBEDDING_MODELS
 from src.rag import ComplaintRAG, ComplaintQA
 from src.llm_utils import LLMSummarizer
 
@@ -45,9 +46,17 @@ st.markdown("""
         border-radius: 0.5rem;
         margin: 0.5rem 0;
     }
+    .comparison-highlight {
+        background: linear-gradient(90deg, #1f77b4 0%, #2ca02c 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: bold;
+    }
 </style>
 """, unsafe_allow_html=True)
 
+
+# -- Data Loading Helpers ------------------------------------------------------
 
 @st.cache_data
 def load_data():
@@ -75,6 +84,17 @@ def initialize_embedder():
     """Initialize embedder."""
     return ComplaintEmbedder()
 
+
+def load_json_results(filename):
+    """Load JSON results from data/results/ directory."""
+    path = PROJECT_ROOT / "data" / "results" / filename
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return None
+
+
+# -- Page Functions ------------------------------------------------------------
 
 def overview_page(df):
     """Overview page with key metrics and trends."""
@@ -426,6 +446,285 @@ def qa_page(df, rag, embedder):
             st.warning("Please enter a question")
 
 
+# -- NEW COMPARISON PAGES -----------------------------------------------------
+
+def embedding_comparison_page(df):
+    """Embedding model comparison page with UMAP plots and benchmarks."""
+    st.markdown('<div class="main-header">Embedding Model Comparison</div>', unsafe_allow_html=True)
+    st.markdown("Side-by-side comparison of MiniLM (baseline) vs BGE (SOTA)")
+
+    st.markdown("---")
+
+    # Load benchmark results
+    benchmark = load_json_results("embedding_benchmark.json")
+
+    if benchmark is None:
+        st.warning(
+            "No embedding benchmark results found. "
+            "Run: `python run_pipeline.py --model both`"
+        )
+        return
+
+    # Summary metrics
+    st.subheader("📊 Model Overview")
+    model_keys = [k for k in benchmark if k != "cross_model"]
+
+    cols = st.columns(len(model_keys))
+    for col, key in zip(cols, model_keys):
+        m = benchmark[key]
+        with col:
+            st.markdown(f"### {m['model_name']}")
+            st.metric("Dimension", m['embedding_dim'])
+            st.metric("Throughput", f"{m['throughput_texts_per_sec']:.0f} texts/sec")
+            st.metric("Memory", f"{m['memory_mb']:.1f} MB")
+            st.metric("Encoding Time", f"{m['encoding_time_sec']:.1f}s")
+
+    st.markdown("---")
+
+    # Cosine similarity comparison
+    st.subheader("📈 Cosine Similarity Distribution")
+    sim_data = []
+    for key in model_keys:
+        sim = benchmark[key]["cosine_similarity"]
+        sim_data.append({
+            "Model": benchmark[key]["model_name"],
+            "Mean": sim["mean"],
+            "Std": sim["std"],
+            "P25": sim["p25"],
+            "P50": sim["p50"],
+            "P75": sim["p75"],
+        })
+
+    sim_df = pd.DataFrame(sim_data)
+    st.dataframe(sim_df, use_container_width=True)
+
+    st.info(
+        "**Interpretation:** Lower mean cosine similarity indicates better "
+        "spread in the embedding space — the model is better at distinguishing "
+        "between different texts. A model where all embeddings cluster near "
+        "1.0 similarity is not differentiating content well."
+    )
+
+    # Cluster separation (if available)
+    has_cluster = any(
+        benchmark[k].get("cluster_separation") for k in model_keys
+    )
+    if has_cluster:
+        st.subheader("🎯 Cluster Separation")
+        sep_data = []
+        for key in model_keys:
+            cs = benchmark[key].get("cluster_separation", {})
+            if cs:
+                sep_data.append({
+                    "Model": benchmark[key]["model_name"],
+                    "Intra-cluster Sim": cs.get("intra_cluster_sim", "N/A"),
+                    "Inter-cluster Sim": cs.get("inter_cluster_sim", "N/A"),
+                    "Separation Gap": cs.get("separation", "N/A"),
+                })
+
+        if sep_data:
+            sep_df = pd.DataFrame(sep_data)
+            st.dataframe(sep_df, use_container_width=True)
+
+            st.info(
+                "**Separation Gap** = Intra-cluster − Inter-cluster similarity. "
+                "Higher is better — means embeddings within the same cluster are "
+                "much more similar than embeddings across different clusters."
+            )
+
+    # Cross-model overlap
+    if "cross_model" in benchmark:
+        st.markdown("---")
+        st.subheader("🔀 Cross-Model Agreement")
+        cm = benchmark["cross_model"]
+        st.metric(
+            "Top-10 Neighbor Overlap",
+            f"{cm['top10_overlap_mean']:.1%}",
+            help="How often the two models agree on the 10 most similar texts for a given query"
+        )
+        st.write(cm.get("interpretation", ""))
+
+    # UMAP visualization
+    st.markdown("---")
+    st.subheader("🗺️ Embedding Space (UMAP)")
+
+    for key in ["minilm", "bge"]:
+        umap_path = PROJECT_ROOT / "data" / "processed" / f"umap_{key}.npy"
+        emb_path = PROJECT_ROOT / "data" / "processed" / f"embeddings_{key}.npy"
+
+        if umap_path.exists():
+            projection = np.load(umap_path)
+            labels = df['cluster'].values[:len(projection)] if 'cluster' in df.columns else np.zeros(len(projection))
+
+            fig = px.scatter(
+                x=projection[:, 0], y=projection[:, 1],
+                color=[str(l) for l in labels],
+                title=f"{EMBEDDING_MODELS.get(key, {}).get('name', key)} — UMAP 2D",
+                labels={"color": "Cluster"},
+                opacity=0.5,
+            )
+            fig.update_traces(marker=dict(size=2))
+            fig.update_layout(template="plotly_dark", height=500)
+            st.plotly_chart(fig, use_container_width=True)
+        elif emb_path.exists():
+            st.info(
+                f"UMAP projection for {key} not cached. "
+                f"Run the pipeline notebook to generate it."
+            )
+
+
+def clustering_comparison_page(df):
+    """Clustering comparison page: KMeans vs BERTopic."""
+    st.markdown('<div class="main-header">Clustering Comparison</div>', unsafe_allow_html=True)
+    st.markdown("KMeans (baseline, fixed-k) vs BERTopic (SOTA, automatic topic discovery)")
+
+    st.markdown("---")
+
+    comparison = load_json_results("cluster_comparison.json")
+
+    if comparison is None:
+        st.warning(
+            "No clustering comparison results found. "
+            "Run: `python run_pipeline.py --clustering both`"
+        )
+        return
+
+    # Side-by-side metrics
+    st.subheader("📊 Quality Metrics")
+
+    col1, col2 = st.columns(2)
+
+    for col, method_key, color in [
+        (col1, "kmeans", "#636EFA"),
+        (col2, "bertopic", "#00CC96"),
+    ]:
+        m = comparison.get(method_key, {})
+        with col:
+            st.markdown(f"### {m.get('method', method_key)}")
+            st.metric("Clusters Found", m.get("n_clusters", "N/A"))
+            st.metric("Outliers", m.get("n_outliers", 0))
+
+            sil = m.get("silhouette")
+            if sil is not None:
+                st.metric("Silhouette Score", f"{sil:.4f}",
+                          help="Range [-1, 1]. Higher = better cluster separation.")
+            ch = m.get("calinski_harabasz")
+            if ch is not None:
+                st.metric("Calinski-Harabasz", f"{ch:.1f}",
+                          help="Higher = denser, well-separated clusters.")
+            db = m.get("davies_bouldin")
+            if db is not None:
+                st.metric("Davies-Bouldin", f"{db:.4f}",
+                          help="Lower = better. Measures cluster overlap.")
+
+    # Visual comparison chart
+    st.markdown("---")
+    st.subheader("📈 Visual Comparison")
+
+    from src.visualizer import EmbeddingVisualizer
+    viz = EmbeddingVisualizer()
+    fig = viz.plot_cluster_comparison(comparison)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Interpretation
+    st.markdown("---")
+    st.subheader("📝 Key Takeaways")
+
+    km = comparison.get("kmeans", {})
+    bt = comparison.get("bertopic", {})
+
+    st.markdown(f"""
+    | Aspect | KMeans | BERTopic |
+    |--------|--------|----------|
+    | **Method** | Centroid-based, fixed k={km.get('n_clusters', '?')} | Density-based (HDBSCAN), auto-discovers topics |
+    | **Clusters** | {km.get('n_clusters', '?')} | {bt.get('n_clusters', '?')} |
+    | **Outliers** | 0 (forces all points into clusters) | {bt.get('n_outliers', '?')} (noisy docs flagged) |
+    | **Silhouette** | {km.get('silhouette', 'N/A')} | {bt.get('silhouette', 'N/A')} |
+    """)
+
+    # BERTopic topics (if data exists)
+    if 'topic' in df.columns:
+        st.markdown("---")
+        st.subheader("🏷️ BERTopic Discovered Topics")
+        topic_counts = df['topic'].value_counts().head(15)
+        fig = px.bar(
+            x=topic_counts.values,
+            y=[f"Topic {t}" for t in topic_counts.index],
+            orientation='h',
+            labels={'x': 'Document Count', 'y': 'Topic'},
+            color=topic_counts.values,
+            color_continuous_scale='Viridis',
+        )
+        fig.update_layout(showlegend=False, height=400, template="plotly_dark")
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def retrieval_benchmark_page():
+    """Retrieval benchmark comparison page."""
+    st.markdown('<div class="main-header">Retrieval Benchmark</div>', unsafe_allow_html=True)
+    st.markdown("Head-to-head latency comparison of all retrieval strategies")
+
+    st.markdown("---")
+
+    results = load_json_results("retrieval_benchmark.json")
+
+    if results is None:
+        st.warning(
+            "No retrieval benchmark results found. "
+            "Run: `python run_pipeline.py --benchmark`"
+        )
+        return
+
+    # Summary table
+    st.subheader("📊 Latency Summary")
+
+    table_data = []
+    for name, metrics in results.items():
+        if "error" in metrics or "latency" not in metrics:
+            continue
+        lat = metrics["latency"]
+        table_data.append({
+            "Retriever": name,
+            "p50 (ms)": lat["p50_ms"],
+            "p95 (ms)": lat["p95_ms"],
+            "p99 (ms)": lat["p99_ms"],
+            "Mean (ms)": lat["mean_ms"],
+            "Avg Results": metrics["avg_results_returned"],
+        })
+
+    if table_data:
+        table_df = pd.DataFrame(table_data)
+        st.dataframe(table_df, use_container_width=True)
+
+    # Bar chart comparison
+    st.markdown("---")
+    st.subheader("📈 Visual Comparison")
+
+    from src.visualizer import EmbeddingVisualizer
+    viz = EmbeddingVisualizer()
+    fig = viz.plot_retrieval_comparison(results)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Interpretation
+    st.markdown("---")
+    st.subheader("📝 What This Means")
+
+    st.markdown("""
+    **Key insights from the benchmark:**
+
+    - **Vector (FAISS)**: Fastest — pure nearest-neighbor search with no text processing overhead
+    - **BM25**: Very fast — no neural computation, pure term-frequency matching
+    - **Hybrid (RRF)**: Slightly slower — runs both Vector + BM25 and fuses results
+    - **Reranked Hybrid**: Slowest but highest quality — adds a cross-encoder pass that re-scores candidates with full cross-attention
+
+    > **The production pattern**: Use Hybrid retrieval for broad candidate generation,
+    > then Reranked for precision. The cross-encoder reranking step typically improves
+    > retrieval quality by 18-42% at the cost of ~50-200ms additional latency.
+    """)
+
+
+# -- Main App ------------------------------------------------------------------
+
 def main():
     """Main application."""
     
@@ -433,7 +732,16 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Go to",
-        ["Overview", "Clusters", "Complaint Viewer", "Ask AI"]
+        [
+            "Overview",
+            "Clusters",
+            "Complaint Viewer",
+            "Ask AI",
+            "─── Comparisons ───",
+            "Embedding Comparison",
+            "Clustering Comparison",
+            "Retrieval Benchmark",
+        ]
     )
     
     st.sidebar.markdown("---")
@@ -441,6 +749,16 @@ def main():
         "This system uses GenAI to analyze customer complaints, "
         "identify patterns, and enable natural language search."
     )
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Tech Stack")
+    st.sidebar.markdown("""
+    - **Embeddings:** MiniLM / BGE
+    - **Clustering:** KMeans / BERTopic
+    - **Retrieval:** FAISS + BM25 + Reranking
+    - **LLM:** Gemini
+    - **Viz:** Plotly + UMAP
+    """)
     
     # Load data
     try:
@@ -460,15 +778,30 @@ def main():
             rag = initialize_rag(embeddings)
             embedder = initialize_embedder()
             qa_page(df, rag, embedder)
+
+        elif page == "Embedding Comparison":
+            embedding_comparison_page(df)
+
+        elif page == "Clustering Comparison":
+            clustering_comparison_page(df)
+
+        elif page == "Retrieval Benchmark":
+            retrieval_benchmark_page()
+
+        elif page == "─── Comparisons ───":
+            st.info("Select a specific comparison page from the sidebar.")
     
     except FileNotFoundError as e:
         st.error("Data files not found. Please run the data processing pipeline first.")
         st.code("""
-# Run these steps:
-1. Process the data: python src/preprocess.py
-2. Generate embeddings: python src/embeddings.py
-3. Cluster complaints: python src/clustering.py
-4. (Optional) Generate LLM summaries: python src/llm_utils.py
+# Run the full pipeline:
+python run_pipeline.py --model both --clustering both --benchmark
+
+# Or step by step:
+python run_pipeline.py                    # Basic pipeline
+python run_pipeline.py --model both       # Add BGE embeddings
+python run_pipeline.py --clustering both  # Add BERTopic
+python run_pipeline.py --benchmark        # Run retrieval benchmarks
         """)
 
 

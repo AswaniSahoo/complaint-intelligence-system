@@ -1,0 +1,58 @@
+{
+  "dataset": {
+    "source": "CFPB Consumer Complaints",
+    "total_rows": 15000,
+    "unique_texts": 12923,
+    "products": 20,
+    "issues": 140,
+    "date_range": "2015-03-20 to 2025-11-20"
+  },
+  "embeddings": {
+    "minilm": {
+      "dim": 384,
+      "model": "all-MiniLM-L6-v2",
+      "coherence": 0.5279
+    },
+    "bge": {
+      "dim": 768,
+      "model": "BAAI/bge-base-en-v1.5",
+      "coherence": 0.8104
+    }
+  },
+  "clustering": {
+    "kmeans": {
+      "method": "KMeans",
+      "n_clusters": 6,
+      "n_outliers": 0,
+      "silhouette": 0.0372,
+      "calinski_harabasz": 533.23,
+      "davies_bouldin": 3.7914
+    },
+    "bertopic": {
+      "method": "BERTopic",
+      "n_clusters": 51,
+      "n_outliers": 4676,
+      "silhouette": 0.0488,
+      "calinski_harabasz": 100.34,
+      "davies_bouldin": 2.7266
+    }
+  },
+  "retrieval": {
+    "BM25": {
+      "p50_ms": 34.81484999792883,
+      "p95_ms": 50.50951499870279,
+      "mean_ms": 37.22680000009859
+    },
+    "Vector (BGE)": {
+      "p50_ms": 56.58940000284929,
+      "p95_ms": 60.428095001771,
+      "mean_ms": 49.13893750017451
+    },
+    "BM25+Reranker": {
+      "p50_ms": 157.68740000203252,
+      "p95_ms": 196.96930999998582,
+      "mean_ms": 164.50426250048622
+    }
+  },
+  "verified_on": "2026-06-01T03:25:04.375666"
+}

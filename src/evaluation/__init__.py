@@ -1,8 +1,12 @@
 """
-Evaluation framework for retrieval strategies.
+Evaluation module for the Complaint Intelligence System.
 
-Modules:
-    metrics: Precision@K, Recall@K, MRR, NDCG + RAGAS integration
-    test_queries: Curated evaluation query set with ground truth
-    benchmark: Run all retrievers and generate comparison reports
+Provides:
+    - RetrievalBenchmark: Compare retrieval strategies on latency and quality
 """
+
+from src.evaluation.retrieval_benchmark import RetrievalBenchmark
+
+__all__ = [
+    "RetrievalBenchmark",
+]

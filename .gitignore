@@ -44,15 +44,9 @@ Thumbs.db
 # Streamlit
 .streamlit/secrets.toml
 
-# Local AI tool configs
-.agent/
-.windsurf/
-.claude/
-.gemini/
-.opencode.json
-.qoder/
+# UMAP cache (regenerated on each run)
+data/processed/cache/
 
 # Notebook copies
 *copy*.ipynb
 * copy.ipynb
-

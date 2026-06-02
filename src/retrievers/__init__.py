@@ -7,6 +7,7 @@ Provides multiple retrieval approaches:
     - HybridRetriever: Ensemble of Vector + BM25 with Reciprocal Rank Fusion
     - HyDERetriever: Hypothetical Document Embeddings
     - TreeRetriever: PageIndex-inspired hierarchical reasoning-based retrieval
+    - RerankedRetriever: Wraps any retriever with cross-encoder reranking
 """
 
 from src.retrievers.base import BaseRetriever, RetrievalResult
@@ -15,6 +16,7 @@ from src.retrievers.bm25_retriever import BM25Retriever
 from src.retrievers.hybrid_retriever import HybridRetriever
 from src.retrievers.hyde_retriever import HyDERetriever
 from src.retrievers.tree_retriever import TreeRetriever
+from src.retrievers.reranked_retriever import RerankedRetriever
 
 ALL_RETRIEVERS = {
     "vector": VectorRetriever,
@@ -22,6 +24,7 @@ ALL_RETRIEVERS = {
     "hybrid": HybridRetriever,
     "hyde": HyDERetriever,
     "tree": TreeRetriever,
+    "reranked": RerankedRetriever,
 }
 
 __all__ = [
@@ -32,5 +35,6 @@ __all__ = [
     "HybridRetriever",
     "HyDERetriever",
     "TreeRetriever",
+    "RerankedRetriever",
     "ALL_RETRIEVERS",
 ]
