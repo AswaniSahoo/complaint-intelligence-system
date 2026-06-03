@@ -13,13 +13,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 from src.embeddings import ComplaintEmbedder, EMBEDDING_MODELS
 from src.rag import ComplaintRAG, ComplaintQA
-from src.llm_utils import LLMSummarizer
 
 
 # Page config
 st.set_page_config(
-    page_title="Customer Complaint Intelligence System",
-    page_icon="📊",
+    page_title="Complaint Intelligence System",
+    page_icon="C",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -27,33 +26,92 @@ st.set_page_config(
 # Custom CSS
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
+
     .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 1rem;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #E0E0E0;
+        margin-bottom: 0.25rem;
+        letter-spacing: -0.02em;
     }
     .sub-header {
-        font-size: 1.2rem;
-        color: #666;
-        text-align: center;
-        margin-bottom: 2rem;
+        font-size: 0.95rem;
+        color: #8B8FA3;
+        margin-bottom: 1.5rem;
     }
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 0.5rem;
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #C0C4D0;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+    .glass-card {
+        background: rgba(26, 31, 43, 0.7);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        padding: 1.25rem;
         margin: 0.5rem 0;
     }
-    .comparison-highlight {
-        background: linear-gradient(90deg, #1f77b4 0%, #2ca02c 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: bold;
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #4A9EFF;
+        line-height: 1.2;
+    }
+    .stat-label {
+        font-size: 0.8rem;
+        color: #8B8FA3;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    div[data-testid="stMetric"] {
+        background: rgba(26, 31, 43, 0.7);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+    }
+    div[data-testid="stMetric"] label {
+        color: #8B8FA3 !important;
+        font-size: 0.8rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: #E0E0E0 !important;
+        font-weight: 600;
+    }
+    .stExpander {
+        border: 1px solid rgba(255, 255, 255, 0.06) !important;
+        border-radius: 8px !important;
+        background: rgba(26, 31, 43, 0.5) !important;
+    }
+    hr {
+        border-color: rgba(255, 255, 255, 0.06) !important;
+        margin: 1.5rem 0 !important;
+    }
+    section[data-testid="stSidebar"] {
+        background: #0E1117;
+        border-right: 1px solid rgba(255, 255, 255, 0.06);
     }
 </style>
 """, unsafe_allow_html=True)
+
+
+PLOTLY_LAYOUT = dict(
+    template="plotly_dark",
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(family="Inter, sans-serif", size=12),
+    margin=dict(l=40, r=20, t=40, b=40),
+)
 
 
 # -- Data Loading Helpers ------------------------------------------------------
@@ -68,20 +126,26 @@ def load_data():
 
 @st.cache_resource
 def load_embeddings():
-    """Load embeddings."""
-    return np.load(PROJECT_ROOT / "data" / "processed" / "embeddings.npy")
+    """Load embeddings, preferring MiniLM for the RAG system."""
+    # Try MiniLM first (200K run output), fall back to legacy name
+    for name in ["embeddings_minilm.npy", "embeddings.npy"]:
+        path = PROJECT_ROOT / "data" / "processed" / name
+        if path.exists():
+            return np.load(path)
+    raise FileNotFoundError("No embedding file found in data/processed/")
 
 
 @st.cache_resource
-def initialize_rag(_embeddings, embedding_dim=384):
+def initialize_rag(_embeddings):
     """Initialize RAG system."""
-    rag = ComplaintRAG(_embeddings, embedding_dim)
+    dim = _embeddings.shape[1]
+    rag = ComplaintRAG(_embeddings, dim)
     return rag
 
 
 @st.cache_resource
 def initialize_embedder():
-    """Initialize embedder."""
+    """Initialize embedder for query encoding."""
     return ComplaintEmbedder()
 
 
@@ -98,346 +162,294 @@ def load_json_results(filename):
 
 def overview_page(df):
     """Overview page with key metrics and trends."""
-    st.markdown('<div class="main-header">Customer Complaint Intelligence System</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">GenAI-powered Summarization, Clustering & Insight Dashboard</div>', unsafe_allow_html=True)
-    
+    st.markdown('<div class="main-header">Complaint Intelligence System</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">200K CFPB complaints analyzed with dual embeddings, multi-method clustering, and benchmarked retrieval</div>', unsafe_allow_html=True)
+
     st.markdown("---")
-    
+
     # Key metrics
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
         st.metric("Total Complaints", f"{len(df):,}")
-    
     with col2:
-        unique_products = df['product'].nunique()
-        st.metric("Unique Products", unique_products)
-    
+        st.metric("Products", df['product'].nunique())
     with col3:
         if 'cluster' in df.columns:
-            st.metric("Identified Clusters", df['cluster'].nunique())
+            st.metric("KMeans Clusters", df['cluster'].nunique())
         else:
-            st.metric("Identified Clusters", "N/A")
-    
+            st.metric("Clusters", "N/A")
     with col4:
-        if 'llm_urgency' in df.columns:
-            high_urgency = (df['llm_urgency'] == 'High').sum()
-            st.metric("High Urgency", high_urgency)
+        if 'topic' in df.columns:
+            n_topics = df['topic'].nunique()
+            st.metric("BERTopic Topics", n_topics)
         else:
-            st.metric("High Urgency", "N/A")
-    
+            st.metric("Topics", "N/A")
+
     st.markdown("---")
-    
+
     # Two columns layout
     col1, col2 = st.columns(2)
-    
+
     with col1:
-        st.subheader("Top Products by Complaint Volume")
+        st.markdown('<div class="section-title">Top Products by Complaint Volume</div>', unsafe_allow_html=True)
         product_counts = df['product'].value_counts().head(10)
         fig = px.bar(
             x=product_counts.values,
             y=product_counts.index,
             orientation='h',
-            labels={'x': 'Number of Complaints', 'y': 'Product'},
+            labels={'x': 'Complaints', 'y': ''},
             color=product_counts.values,
-            color_continuous_scale='Blues'
+            color_continuous_scale=[[0, '#1a3a5c'], [1, '#4A9EFF']],
         )
-        fig.update_layout(showlegend=False, height=400)
+        fig.update_layout(**PLOTLY_LAYOUT, showlegend=False, height=380, coloraxis_showscale=False)
         st.plotly_chart(fig, use_container_width=True)
-    
+
     with col2:
-        st.subheader("Top Issues")
+        st.markdown('<div class="section-title">Top Issues</div>', unsafe_allow_html=True)
         issue_counts = df['issue'].value_counts().head(10)
         fig = px.bar(
             x=issue_counts.values,
             y=issue_counts.index,
             orientation='h',
-            labels={'x': 'Number of Complaints', 'y': 'Issue'},
+            labels={'x': 'Complaints', 'y': ''},
             color=issue_counts.values,
-            color_continuous_scale='Reds'
+            color_continuous_scale=[[0, '#3a1a1a'], [1, '#FF6B6B']],
         )
-        fig.update_layout(showlegend=False, height=400)
+        fig.update_layout(**PLOTLY_LAYOUT, showlegend=False, height=380, coloraxis_showscale=False)
         st.plotly_chart(fig, use_container_width=True)
-    
+
     # Time series
-    st.subheader("Complaint Trends Over Time")
-    df_time = df.set_index('date').resample('ME').size().reset_index()
+    st.markdown('<div class="section-title">Complaint Volume Over Time</div>', unsafe_allow_html=True)
+    df_time = df.dropna(subset=['date']).set_index('date').resample('ME').size().reset_index()
     df_time.columns = ['date', 'count']
-    
-    fig = px.line(
-        df_time,
-        x='date',
-        y='count',
-        labels={'date': 'Date', 'count': 'Number of Complaints'},
-        markers=True
+
+    fig = px.area(
+        df_time, x='date', y='count',
+        labels={'date': '', 'count': 'Complaints'},
     )
-    fig.update_layout(height=350)
+    fig.update_traces(
+        fill='tozeroy',
+        fillcolor='rgba(74, 158, 255, 0.1)',
+        line=dict(color='#4A9EFF', width=2),
+    )
+    fig.update_layout(**PLOTLY_LAYOUT, height=300)
     st.plotly_chart(fig, use_container_width=True)
-    
-    # Category distribution if available
-    if 'llm_category' in df.columns:
-        st.subheader("Complaint Categories (AI-Generated)")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            category_counts = df['llm_category'].value_counts()
-            fig = px.pie(
-                values=category_counts.values,
-                names=category_counts.index,
-                title="Category Distribution"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            if 'llm_urgency' in df.columns:
-                urgency_counts = df['llm_urgency'].value_counts()
-                fig = px.pie(
-                    values=urgency_counts.values,
-                    names=urgency_counts.index,
-                    title="Urgency Distribution",
-                    color_discrete_sequence=['#90EE90', '#FFD700', '#FF6347']
-                )
-                st.plotly_chart(fig, use_container_width=True)
+
+    # Cluster distribution
+    if 'cluster' in df.columns:
+        st.markdown('<div class="section-title">Cluster Distribution</div>', unsafe_allow_html=True)
+        cluster_counts = df['cluster'].value_counts().sort_index()
+        fig = px.bar(
+            x=[f"Cluster {c}" for c in cluster_counts.index],
+            y=cluster_counts.values,
+            labels={'x': '', 'y': 'Complaints'},
+            color=cluster_counts.values,
+            color_continuous_scale=[[0, '#1a3a2a'], [1, '#00CC96']],
+        )
+        fig.update_layout(**PLOTLY_LAYOUT, showlegend=False, height=300, coloraxis_showscale=False)
+        st.plotly_chart(fig, use_container_width=True)
 
 
 def clusters_page(df):
-    """Clusters page with drilldown into each cluster."""
-    st.markdown('<div class="main-header">Complaint Clusters</div>', unsafe_allow_html=True)
-    st.markdown("Explore grouped complaints to identify recurring issues")
-    
+    """Cluster drilldown page."""
+    st.markdown('<div class="main-header">Cluster Explorer</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Drill into each cluster to understand recurring complaint patterns</div>', unsafe_allow_html=True)
+
     st.markdown("---")
-    
+
     if 'cluster' not in df.columns:
-        st.warning("Clustering has not been performed yet. Please run the clustering pipeline first.")
+        st.warning("Clustering has not been performed yet. Run the pipeline first.")
         return
-    
-    # Cluster selection
+
     cluster_id = st.selectbox(
         "Select Cluster",
         options=sorted(df['cluster'].unique()),
         format_func=lambda x: f"Cluster {x}"
     )
-    
-    # Filter data for selected cluster
+
     cluster_df = df[df['cluster'] == cluster_id]
-    
-    # Cluster overview
+
+    # Metrics
     col1, col2, col3 = st.columns(3)
-    
     with col1:
-        st.metric("Complaints in Cluster", len(cluster_df))
-    
+        st.metric("Complaints", f"{len(cluster_df):,}")
     with col2:
-        percentage = (len(cluster_df) / len(df)) * 100
-        st.metric("Percentage of Total", f"{percentage:.1f}%")
-    
+        pct = (len(cluster_df) / len(df)) * 100
+        st.metric("Share of Total", f"{pct:.1f}%")
     with col3:
-        if 'llm_urgency' in cluster_df.columns:
-            high_urgency = (cluster_df['llm_urgency'] == 'High').sum()
-            st.metric("High Urgency", high_urgency)
-    
+        st.metric("Unique Products", cluster_df['product'].nunique())
+
     st.markdown("---")
-    
-    # Two columns
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
-        st.subheader("Top Products in Cluster")
+        st.markdown('<div class="section-title">Top Products</div>', unsafe_allow_html=True)
         product_counts = cluster_df['product'].value_counts().head(5)
         fig = px.bar(
-            x=product_counts.values,
-            y=product_counts.index,
-            orientation='h',
+            x=product_counts.values, y=product_counts.index,
+            orientation='h', labels={'x': 'Count', 'y': ''},
             color=product_counts.values,
-            color_continuous_scale='Viridis'
+            color_continuous_scale=[[0, '#1a3a5c'], [1, '#4A9EFF']],
         )
-        fig.update_layout(showlegend=False, height=300)
+        fig.update_layout(**PLOTLY_LAYOUT, showlegend=False, height=280, coloraxis_showscale=False)
         st.plotly_chart(fig, use_container_width=True)
-    
+
     with col2:
-        st.subheader("Top Issues in Cluster")
+        st.markdown('<div class="section-title">Top Issues</div>', unsafe_allow_html=True)
         issue_counts = cluster_df['issue'].value_counts().head(5)
         fig = px.bar(
-            x=issue_counts.values,
-            y=issue_counts.index,
-            orientation='h',
+            x=issue_counts.values, y=issue_counts.index,
+            orientation='h', labels={'x': 'Count', 'y': ''},
             color=issue_counts.values,
-            color_continuous_scale='Plasma'
+            color_continuous_scale=[[0, '#3a2a1a'], [1, '#FFB347']],
         )
-        fig.update_layout(showlegend=False, height=300)
+        fig.update_layout(**PLOTLY_LAYOUT, showlegend=False, height=280, coloraxis_showscale=False)
         st.plotly_chart(fig, use_container_width=True)
-    
-    # Sample complaints from cluster
-    st.subheader("Sample Complaints from this Cluster")
-    
+
+    # Sample complaints
+    st.markdown('<div class="section-title">Sample Complaints</div>', unsafe_allow_html=True)
+
     sample_size = min(5, len(cluster_df))
-    sample_df = cluster_df.sample(n=sample_size)
-    
-    for idx, row in sample_df.iterrows():
-        with st.expander(f"Complaint: {row['product']} - {row['issue'][:50]}..."):
+    sample_df = cluster_df.sample(n=sample_size, random_state=42)
+
+    for _, row in sample_df.iterrows():
+        with st.expander(f"{row['product']} — {str(row['issue'])[:60]}"):
             st.write(f"**Product:** {row['product']}")
             st.write(f"**Issue:** {row['issue']}")
-            st.write(f"**Date:** {row['date'].strftime('%Y-%m-%d') if pd.notna(row['date']) else 'N/A'}")
-            
-            if 'llm_summary' in row.index and pd.notna(row.get('llm_summary')):
-                st.write(f"**AI Summary:** {row['llm_summary']}")
-                st.write(f"**Category:** {row.get('llm_category', 'N/A')} | **Urgency:** {row.get('llm_urgency', 'N/A')}")
-            
-            st.write("**Full Text:**")
-            st.text(row['complaint_text'][:500] + "..." if len(str(row['complaint_text'])) > 500 else row['complaint_text'])
+            date_str = row['date'].strftime('%Y-%m-%d') if pd.notna(row['date']) else 'N/A'
+            st.write(f"**Date:** {date_str}")
+            text = str(row['complaint_text'])
+            st.text(text[:500] + "..." if len(text) > 500 else text)
 
 
 def viewer_page(df):
-    """Complaint viewer page with search and filters."""
+    """Complaint viewer with filters."""
     st.markdown('<div class="main-header">Complaint Viewer</div>', unsafe_allow_html=True)
-    st.markdown("Browse and search through individual complaints")
-    
+    st.markdown('<div class="sub-header">Browse and filter individual complaints</div>', unsafe_allow_html=True)
+
     st.markdown("---")
-    
-    # Filters
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         products = ['All'] + sorted(df['product'].unique().tolist())
         selected_product = st.selectbox("Filter by Product", products)
-    
     with col2:
-        if 'llm_category' in df.columns:
-            # Filter out NaN values before sorting
-            categories = ['All'] + sorted(df['llm_category'].dropna().unique().tolist())
-            selected_category = st.selectbox("Filter by Category", categories)
+        if 'cluster' in df.columns:
+            clusters = ['All'] + [f"Cluster {c}" for c in sorted(df['cluster'].unique())]
+            selected_cluster = st.selectbox("Filter by Cluster", clusters)
         else:
-            selected_category = 'All'
-    
+            selected_cluster = 'All'
     with col3:
-        if 'llm_urgency' in df.columns:
-            urgencies = ['All'] + ['High', 'Medium', 'Low']
-            selected_urgency = st.selectbox("Filter by Urgency", urgencies)
-        else:
-            selected_urgency = 'All'
-    
+        search_text = st.text_input("Search in text", placeholder="e.g. credit card")
+
     # Apply filters
     filtered_df = df.copy()
-    
+
     if selected_product != 'All':
         filtered_df = filtered_df[filtered_df['product'] == selected_product]
-    
-    if selected_category != 'All' and 'llm_category' in df.columns:
-        filtered_df = filtered_df[filtered_df['llm_category'] == selected_category]
-    
-    if selected_urgency != 'All' and 'llm_urgency' in df.columns:
-        filtered_df = filtered_df[filtered_df['llm_urgency'] == selected_urgency]
-    
-    st.write(f"Showing {len(filtered_df)} complaints")
-    
+
+    if selected_cluster != 'All' and 'cluster' in df.columns:
+        cluster_num = int(selected_cluster.split()[-1])
+        filtered_df = filtered_df[filtered_df['cluster'] == cluster_num]
+
+    if search_text:
+        mask = filtered_df['clean_text'].str.contains(search_text.lower(), na=False)
+        filtered_df = filtered_df[mask]
+
+    st.write(f"Showing {len(filtered_df):,} complaints")
+
     # Display table
     display_columns = ['date', 'product', 'issue']
-    if 'llm_summary' in df.columns:
-        display_columns.extend(['llm_summary', 'llm_category', 'llm_urgency'])
-    
+    if 'cluster' in df.columns:
+        display_columns.append('cluster')
+
     display_df = filtered_df[display_columns].copy()
     display_df['date'] = display_df['date'].dt.strftime('%Y-%m-%d')
-    
-    # Show table
-    st.dataframe(display_df, use_container_width=True, height=400)
-    
-    # Detailed view
+    st.dataframe(display_df.head(200), use_container_width=True, height=400)
+
+    # Detail view
     st.markdown("---")
-    st.subheader("View Full Complaint")
-    
+    st.markdown('<div class="section-title">View Full Complaint</div>', unsafe_allow_html=True)
+
     if len(filtered_df) > 0:
         selected_idx = st.number_input(
-            "Enter row number to view details",
-            min_value=0,
-            max_value=len(filtered_df)-1,
-            value=0
+            "Row number",
+            min_value=0, max_value=min(len(filtered_df)-1, 199), value=0
         )
-        
         row = filtered_df.iloc[selected_idx]
-        
+
         col1, col2 = st.columns([2, 1])
-        
         with col1:
-            st.write("**Full Complaint Text:**")
-            st.text_area("", value=row['complaint_text'], height=300, disabled=True)
-        
+            st.text_area("", value=str(row['complaint_text']), height=250, disabled=True)
         with col2:
-            st.write("**Details:**")
             st.write(f"**Product:** {row['product']}")
             st.write(f"**Issue:** {row['issue']}")
-            st.write(f"**Date:** {row['date'].strftime('%Y-%m-%d') if pd.notna(row['date']) else 'N/A'}")
-            
-            if 'llm_summary' in row.index and pd.notna(row.get('llm_summary')):
-                st.write(f"**AI Summary:** {row['llm_summary']}")
-                st.write(f"**Category:** {row.get('llm_category', 'N/A')}")
-                st.write(f"**Urgency:** {row.get('llm_urgency', 'N/A')}")
-            
+            date_str = row['date'].strftime('%Y-%m-%d') if pd.notna(row['date']) else 'N/A'
+            st.write(f"**Date:** {date_str}")
             if 'cluster' in row.index:
                 st.write(f"**Cluster:** {row['cluster']}")
+            if 'topic' in row.index:
+                st.write(f"**Topic:** {row['topic']}")
 
 
 def qa_page(df, rag, embedder):
-    """Q&A page for natural language queries."""
-    st.markdown('<div class="main-header">Ask AI</div>', unsafe_allow_html=True)
-    st.markdown("Ask questions about customer complaints in natural language")
-    
+    """Search page for natural language queries."""
+    st.markdown('<div class="main-header">Semantic Search</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Search complaints using natural language — powered by FAISS vector similarity</div>', unsafe_allow_html=True)
+
     st.markdown("---")
-    
-    # Example queries
-    with st.expander("Example Queries"):
-        st.write("- What were the main issues in the last 30 days?")
-        st.write("- Show me complaints about credit card billing")
-        st.write("- Find issues related to account closure")
-        st.write("- What are customers complaining about mortgage?")
-        st.write("- Show me delivery or shipping problems")
-    
-    # Query input
-    query = st.text_input("Enter your question:", placeholder="e.g., What are the main billing issues?")
-    
-    col1, col2 = st.columns([1, 4])
+
+    with st.expander("Example queries"):
+        st.markdown("""
+        - What are the main credit card billing issues?
+        - Show complaints about identity theft
+        - Find issues with mortgage loan modification
+        - Debt collector harassment complaints
+        - Bank account overdraft fee problems
+        """)
+
+    query = st.text_input("Enter your question:", placeholder="e.g., unauthorized transactions on my account")
+
+    col1, col2 = st.columns([1, 5])
     with col1:
-        k_results = st.slider("Number of results", min_value=3, max_value=20, value=5)
-    
+        k_results = st.slider("Results", min_value=3, max_value=20, value=5)
+
     if st.button("Search", type="primary"):
         if query:
             with st.spinner("Searching..."):
-                # Create QA system
                 qa = ComplaintQA(rag, embedder, df)
-                
-                # Get results
                 response = qa.answer_query(query, k=k_results)
-                
+
                 st.success(f"Found {response['count']} relevant complaints")
-                
-                # Display results
+
                 for i, result in enumerate(response['results'], 1):
-                    similarity_pct = result['similarity'] * 100
-                    
-                    with st.expander(f"Result {i} - {result['product']} (Similarity: {similarity_pct:.1f}%)"):
-                        st.write(f"**Product:** {result['product']}")
-                        st.write(f"**Issue:** {result['issue']}")
-                        st.write(f"**Date:** {result['date']}")
-                        
-                        if 'summary' in result:
-                            st.write(f"**AI Summary:** {result['summary']}")
-                            st.write(f"**Category:** {result.get('category', 'N/A')} | **Urgency:** {result.get('urgency', 'N/A')}")
-                        
-                        st.write("**Complaint Text:**")
-                        st.text(result['complaint_text'][:400] + "..." if len(result['complaint_text']) > 400 else result['complaint_text'])
-                
+                    sim_pct = result['similarity'] * 100
+
+                    with st.expander(f"#{i} — {result['product']} ({sim_pct:.1f}% match)"):
+                        col1, col2 = st.columns([2, 1])
+                        with col1:
+                            text = result['complaint_text']
+                            st.text(text[:500] + "..." if len(text) > 500 else text)
+                        with col2:
+                            st.write(f"**Product:** {result['product']}")
+                            st.write(f"**Issue:** {result['issue']}")
+                            st.write(f"**Date:** {result['date']}")
+                            st.write(f"**Similarity:** {sim_pct:.1f}%")
+
                 # Insights
                 st.markdown("---")
-                st.subheader("Quick Insights")
-                
+                st.markdown('<div class="section-title">Quick Insights</div>', unsafe_allow_html=True)
+
                 insights = qa.get_insights(query, k=k_results)
-                
+
                 col1, col2 = st.columns(2)
-                
                 with col1:
                     st.write("**Top Products:**")
                     for product, count in list(insights['top_products'].items())[:3]:
                         st.write(f"- {product}: {count}")
-                
                 with col2:
                     st.write("**Top Issues:**")
                     for issue, count in list(insights['top_issues'].items())[:3]:
@@ -446,237 +458,188 @@ def qa_page(df, rag, embedder):
             st.warning("Please enter a question")
 
 
-# -- NEW COMPARISON PAGES -----------------------------------------------------
+# -- Comparison Pages ----------------------------------------------------------
 
 def embedding_comparison_page(df):
-    """Embedding model comparison page with UMAP plots and benchmarks."""
+    """Embedding model comparison."""
     st.markdown('<div class="main-header">Embedding Model Comparison</div>', unsafe_allow_html=True)
-    st.markdown("Side-by-side comparison of MiniLM (baseline) vs BGE (SOTA)")
+    st.markdown('<div class="sub-header">MiniLM (384d, 2022 baseline) vs BGE (768d, 2024 SOTA) — benchmarked on 5K sample</div>', unsafe_allow_html=True)
 
     st.markdown("---")
 
-    # Load benchmark results
     benchmark = load_json_results("embedding_benchmark.json")
-
     if benchmark is None:
-        st.warning(
-            "No embedding benchmark results found. "
-            "Run: `python run_pipeline.py --model both`"
-        )
+        st.warning("No embedding benchmark results found. Run: `python run_pipeline.py --model both`")
         return
 
-    # Summary metrics
-    st.subheader("📊 Model Overview")
+    # Model overview cards
+    st.markdown('<div class="section-title">Model Overview</div>', unsafe_allow_html=True)
     model_keys = [k for k in benchmark if k != "cross_model"]
 
     cols = st.columns(len(model_keys))
     for col, key in zip(cols, model_keys):
         m = benchmark[key]
         with col:
-            st.markdown(f"### {m['model_name']}")
+            st.markdown(f"**{m['model_name']}**")
             st.metric("Dimension", m['embedding_dim'])
             st.metric("Throughput", f"{m['throughput_texts_per_sec']:.0f} texts/sec")
             st.metric("Memory", f"{m['memory_mb']:.1f} MB")
-            st.metric("Encoding Time", f"{m['encoding_time_sec']:.1f}s")
 
     st.markdown("---")
 
-    # Cosine similarity comparison
-    st.subheader("📈 Cosine Similarity Distribution")
+    # Cosine similarity
+    st.markdown('<div class="section-title">Cosine Similarity Distribution</div>', unsafe_allow_html=True)
     sim_data = []
     for key in model_keys:
         sim = benchmark[key]["cosine_similarity"]
         sim_data.append({
             "Model": benchmark[key]["model_name"],
-            "Mean": sim["mean"],
-            "Std": sim["std"],
-            "P25": sim["p25"],
-            "P50": sim["p50"],
-            "P75": sim["p75"],
+            "Mean": f"{sim['mean']:.4f}",
+            "Std": f"{sim['std']:.4f}",
+            "P25": f"{sim['p25']:.4f}",
+            "P50": f"{sim['p50']:.4f}",
+            "P75": f"{sim['p75']:.4f}",
         })
-
-    sim_df = pd.DataFrame(sim_data)
-    st.dataframe(sim_df, use_container_width=True)
+    st.dataframe(pd.DataFrame(sim_data), use_container_width=True, hide_index=True)
 
     st.info(
-        "**Interpretation:** Lower mean cosine similarity indicates better "
-        "spread in the embedding space — the model is better at distinguishing "
-        "between different texts. A model where all embeddings cluster near "
-        "1.0 similarity is not differentiating content well."
+        "Lower mean cosine similarity = better differentiation. "
+        "A model where all embeddings cluster near 1.0 is not distinguishing content."
     )
 
-    # Cluster separation (if available)
-    has_cluster = any(
-        benchmark[k].get("cluster_separation") for k in model_keys
-    )
+    # Cluster separation
+    has_cluster = any(benchmark[k].get("cluster_separation") for k in model_keys)
     if has_cluster:
-        st.subheader("🎯 Cluster Separation")
+        st.markdown('<div class="section-title">Cluster Separation</div>', unsafe_allow_html=True)
         sep_data = []
         for key in model_keys:
             cs = benchmark[key].get("cluster_separation", {})
             if cs:
                 sep_data.append({
                     "Model": benchmark[key]["model_name"],
-                    "Intra-cluster Sim": cs.get("intra_cluster_sim", "N/A"),
-                    "Inter-cluster Sim": cs.get("inter_cluster_sim", "N/A"),
-                    "Separation Gap": cs.get("separation", "N/A"),
+                    "Intra-cluster Sim": f"{cs.get('intra_cluster_sim', 0):.4f}",
+                    "Inter-cluster Sim": f"{cs.get('inter_cluster_sim', 0):.4f}",
+                    "Separation Gap": f"{cs.get('separation', 0):.4f}",
                 })
-
         if sep_data:
-            sep_df = pd.DataFrame(sep_data)
-            st.dataframe(sep_df, use_container_width=True)
-
+            st.dataframe(pd.DataFrame(sep_data), use_container_width=True, hide_index=True)
             st.info(
-                "**Separation Gap** = Intra-cluster − Inter-cluster similarity. "
-                "Higher is better — means embeddings within the same cluster are "
-                "much more similar than embeddings across different clusters."
+                "Separation Gap = Intra - Inter cluster similarity. "
+                "Higher = embeddings within same cluster are more similar than across clusters."
             )
 
     # Cross-model overlap
     if "cross_model" in benchmark:
         st.markdown("---")
-        st.subheader("🔀 Cross-Model Agreement")
+        st.markdown('<div class="section-title">Cross-Model Agreement</div>', unsafe_allow_html=True)
         cm = benchmark["cross_model"]
         st.metric(
             "Top-10 Neighbor Overlap",
             f"{cm['top10_overlap_mean']:.1%}",
-            help="How often the two models agree on the 10 most similar texts for a given query"
+            help="How often both models agree on the 10 most similar texts for a query"
         )
         st.write(cm.get("interpretation", ""))
 
-    # UMAP visualization
-    st.markdown("---")
-    st.subheader("🗺️ Embedding Space (UMAP)")
-
-    for key in ["minilm", "bge"]:
-        umap_path = PROJECT_ROOT / "data" / "processed" / f"umap_{key}.npy"
-        emb_path = PROJECT_ROOT / "data" / "processed" / f"embeddings_{key}.npy"
-
-        if umap_path.exists():
-            projection = np.load(umap_path)
-            labels = df['cluster'].values[:len(projection)] if 'cluster' in df.columns else np.zeros(len(projection))
-
-            fig = px.scatter(
-                x=projection[:, 0], y=projection[:, 1],
-                color=[str(l) for l in labels],
-                title=f"{EMBEDDING_MODELS.get(key, {}).get('name', key)} — UMAP 2D",
-                labels={"color": "Cluster"},
-                opacity=0.5,
-            )
-            fig.update_traces(marker=dict(size=2))
-            fig.update_layout(template="plotly_dark", height=500)
-            st.plotly_chart(fig, use_container_width=True)
-        elif emb_path.exists():
-            st.info(
-                f"UMAP projection for {key} not cached. "
-                f"Run the pipeline notebook to generate it."
-            )
-
 
 def clustering_comparison_page(df):
-    """Clustering comparison page: KMeans vs BERTopic."""
+    """KMeans vs BERTopic comparison."""
     st.markdown('<div class="main-header">Clustering Comparison</div>', unsafe_allow_html=True)
-    st.markdown("KMeans (baseline, fixed-k) vs BERTopic (SOTA, automatic topic discovery)")
+    st.markdown('<div class="sub-header">KMeans (fixed k=6, centroid-based) vs BERTopic (HDBSCAN, automatic topic discovery)</div>', unsafe_allow_html=True)
 
     st.markdown("---")
 
     comparison = load_json_results("cluster_comparison.json")
-
     if comparison is None:
-        st.warning(
-            "No clustering comparison results found. "
-            "Run: `python run_pipeline.py --clustering both`"
-        )
+        st.warning("No clustering comparison results found. Run: `python run_pipeline.py --clustering both`")
         return
 
     # Side-by-side metrics
-    st.subheader("📊 Quality Metrics")
+    st.markdown('<div class="section-title">Quality Metrics</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
-    for col, method_key, color in [
-        (col1, "kmeans", "#636EFA"),
-        (col2, "bertopic", "#00CC96"),
-    ]:
+    for col, method_key in [(col1, "kmeans"), (col2, "bertopic")]:
         m = comparison.get(method_key, {})
         with col:
-            st.markdown(f"### {m.get('method', method_key)}")
+            st.markdown(f"**{m.get('method', method_key)}**")
             st.metric("Clusters Found", m.get("n_clusters", "N/A"))
-            st.metric("Outliers", m.get("n_outliers", 0))
+            st.metric("Outliers", f"{m.get('n_outliers', 0):,}")
 
             sil = m.get("silhouette")
             if sil is not None:
                 st.metric("Silhouette Score", f"{sil:.4f}",
-                          help="Range [-1, 1]. Higher = better cluster separation.")
-            ch = m.get("calinski_harabasz")
-            if ch is not None:
-                st.metric("Calinski-Harabasz", f"{ch:.1f}",
-                          help="Higher = denser, well-separated clusters.")
+                          help="Range [-1, 1]. Higher = better separation.")
             db = m.get("davies_bouldin")
             if db is not None:
                 st.metric("Davies-Bouldin", f"{db:.4f}",
-                          help="Lower = better. Measures cluster overlap.")
+                          help="Lower = less cluster overlap.")
 
-    # Visual comparison chart
+    # Visual comparison
     st.markdown("---")
-    st.subheader("📈 Visual Comparison")
+    st.markdown('<div class="section-title">Visual Comparison</div>', unsafe_allow_html=True)
 
     from src.visualizer import EmbeddingVisualizer
     viz = EmbeddingVisualizer()
     fig = viz.plot_cluster_comparison(comparison)
     st.plotly_chart(fig, use_container_width=True)
 
-    # Interpretation
+    # Comparison table
     st.markdown("---")
-    st.subheader("📝 Key Takeaways")
+    st.markdown('<div class="section-title">Method Comparison</div>', unsafe_allow_html=True)
 
     km = comparison.get("kmeans", {})
     bt = comparison.get("bertopic", {})
 
-    st.markdown(f"""
-    | Aspect | KMeans | BERTopic |
-    |--------|--------|----------|
-    | **Method** | Centroid-based, fixed k={km.get('n_clusters', '?')} | Density-based (HDBSCAN), auto-discovers topics |
-    | **Clusters** | {km.get('n_clusters', '?')} | {bt.get('n_clusters', '?')} |
-    | **Outliers** | 0 (forces all points into clusters) | {bt.get('n_outliers', '?')} (noisy docs flagged) |
-    | **Silhouette** | {km.get('silhouette', 'N/A')} | {bt.get('silhouette', 'N/A')} |
-    """)
+    comparison_df = pd.DataFrame({
+        "Aspect": ["Method", "Clusters", "Outliers", "Silhouette", "Davies-Bouldin"],
+        "KMeans": [
+            f"Centroid-based, fixed k={km.get('n_clusters', '?')}",
+            str(km.get("n_clusters", "?")),
+            "0 (forces all points)",
+            str(km.get("silhouette", "N/A")),
+            str(km.get("davies_bouldin", "N/A")),
+        ],
+        "BERTopic": [
+            "HDBSCAN density-based, auto-k",
+            str(bt.get("n_clusters", "?")),
+            f"{bt.get('n_outliers', '?'):,} ({bt.get('n_outliers', 0) / len(df) * 100:.1f}%)",
+            str(bt.get("silhouette", "N/A")),
+            str(bt.get("davies_bouldin", "N/A")),
+        ],
+    })
+    st.dataframe(comparison_df, use_container_width=True, hide_index=True)
 
-    # BERTopic topics (if data exists)
+    # BERTopic topics
     if 'topic' in df.columns:
         st.markdown("---")
-        st.subheader("🏷️ BERTopic Discovered Topics")
+        st.markdown('<div class="section-title">BERTopic Discovered Topics</div>', unsafe_allow_html=True)
         topic_counts = df['topic'].value_counts().head(15)
         fig = px.bar(
             x=topic_counts.values,
             y=[f"Topic {t}" for t in topic_counts.index],
             orientation='h',
-            labels={'x': 'Document Count', 'y': 'Topic'},
+            labels={'x': 'Documents', 'y': ''},
             color=topic_counts.values,
-            color_continuous_scale='Viridis',
+            color_continuous_scale=[[0, '#1a3a2a'], [1, '#00CC96']],
         )
-        fig.update_layout(showlegend=False, height=400, template="plotly_dark")
+        fig.update_layout(**PLOTLY_LAYOUT, showlegend=False, height=400, coloraxis_showscale=False)
         st.plotly_chart(fig, use_container_width=True)
 
 
 def retrieval_benchmark_page():
-    """Retrieval benchmark comparison page."""
+    """Retrieval latency benchmark."""
     st.markdown('<div class="main-header">Retrieval Benchmark</div>', unsafe_allow_html=True)
-    st.markdown("Head-to-head latency comparison of all retrieval strategies")
+    st.markdown('<div class="sub-header">Latency comparison across 4 retrieval strategies on 200K corpus, 20 queries</div>', unsafe_allow_html=True)
 
     st.markdown("---")
 
     results = load_json_results("retrieval_benchmark.json")
-
     if results is None:
-        st.warning(
-            "No retrieval benchmark results found. "
-            "Run: `python run_pipeline.py --benchmark`"
-        )
+        st.warning("No retrieval benchmark results found. Run: `python run_pipeline.py --benchmark`")
         return
 
     # Summary table
-    st.subheader("📊 Latency Summary")
+    st.markdown('<div class="section-title">Latency Summary</div>', unsafe_allow_html=True)
 
     table_data = []
     for name, metrics in results.items():
@@ -685,20 +648,18 @@ def retrieval_benchmark_page():
         lat = metrics["latency"]
         table_data.append({
             "Retriever": name,
-            "p50 (ms)": lat["p50_ms"],
-            "p95 (ms)": lat["p95_ms"],
-            "p99 (ms)": lat["p99_ms"],
-            "Mean (ms)": lat["mean_ms"],
-            "Avg Results": metrics["avg_results_returned"],
+            "p50 (ms)": f"{lat['p50_ms']:.1f}",
+            "p95 (ms)": f"{lat['p95_ms']:.1f}",
+            "p99 (ms)": f"{lat['p99_ms']:.1f}",
+            "Mean (ms)": f"{lat['mean_ms']:.1f}",
         })
 
     if table_data:
-        table_df = pd.DataFrame(table_data)
-        st.dataframe(table_df, use_container_width=True)
+        st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
 
-    # Bar chart comparison
+    # Bar chart
     st.markdown("---")
-    st.subheader("📈 Visual Comparison")
+    st.markdown('<div class="section-title">Visual Comparison</div>', unsafe_allow_html=True)
 
     from src.visualizer import EmbeddingVisualizer
     viz = EmbeddingVisualizer()
@@ -707,19 +668,16 @@ def retrieval_benchmark_page():
 
     # Interpretation
     st.markdown("---")
-    st.subheader("📝 What This Means")
+    st.markdown('<div class="section-title">Interpretation</div>', unsafe_allow_html=True)
 
     st.markdown("""
-    **Key insights from the benchmark:**
+    - **Vector (FAISS)**: Pure nearest-neighbor search, no text processing overhead
+    - **BM25**: Term-frequency matching, scales linearly with corpus size
+    - **Hybrid (RRF)**: Runs both Vector + BM25 and fuses results via Reciprocal Rank Fusion
+    - **Reranked Hybrid**: Adds a cross-encoder pass (ms-marco-MiniLM-L-6-v2) that re-scores candidates with full cross-attention
 
-    - **Vector (FAISS)**: Fastest — pure nearest-neighbor search with no text processing overhead
-    - **BM25**: Very fast — no neural computation, pure term-frequency matching
-    - **Hybrid (RRF)**: Slightly slower — runs both Vector + BM25 and fuses results
-    - **Reranked Hybrid**: Slowest but highest quality — adds a cross-encoder pass that re-scores candidates with full cross-attention
-
-    > **The production pattern**: Use Hybrid retrieval for broad candidate generation,
-    > then Reranked for precision. The cross-encoder reranking step typically improves
-    > retrieval quality by 18-42% at the cost of ~50-200ms additional latency.
+    The production pattern: use Hybrid for broad candidate generation, then Reranked for precision-critical queries.
+    The cross-encoder step typically costs 200-400ms additional latency for higher retrieval quality.
     """)
 
 
@@ -727,8 +685,7 @@ def retrieval_benchmark_page():
 
 def main():
     """Main application."""
-    
-    # Sidebar navigation
+
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Go to",
@@ -736,44 +693,39 @@ def main():
             "Overview",
             "Clusters",
             "Complaint Viewer",
-            "Ask AI",
-            "─── Comparisons ───",
+            "Semantic Search",
             "Embedding Comparison",
             "Clustering Comparison",
             "Retrieval Benchmark",
         ]
     )
-    
+
     st.sidebar.markdown("---")
-    st.sidebar.info(
-        "This system uses GenAI to analyze customer complaints, "
-        "identify patterns, and enable natural language search."
-    )
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### Tech Stack")
+    st.sidebar.markdown("### Stack")
     st.sidebar.markdown("""
     - **Embeddings:** MiniLM / BGE
     - **Clustering:** KMeans / BERTopic
     - **Retrieval:** FAISS + BM25 + Reranking
-    - **LLM:** Gemini
     - **Viz:** Plotly + UMAP
     """)
-    
+
+    st.sidebar.markdown("---")
+    st.sidebar.caption("200K CFPB complaints | T4 GPU")
+
     # Load data
     try:
         df = load_data()
-        
+
         if page == "Overview":
             overview_page(df)
-        
+
         elif page == "Clusters":
             clusters_page(df)
-        
+
         elif page == "Complaint Viewer":
             viewer_page(df)
-        
-        elif page == "Ask AI":
+
+        elif page == "Semantic Search":
             embeddings = load_embeddings()
             rag = initialize_rag(embeddings)
             embedder = initialize_embedder()
@@ -788,21 +740,9 @@ def main():
         elif page == "Retrieval Benchmark":
             retrieval_benchmark_page()
 
-        elif page == "─── Comparisons ───":
-            st.info("Select a specific comparison page from the sidebar.")
-    
-    except FileNotFoundError as e:
-        st.error("Data files not found. Please run the data processing pipeline first.")
-        st.code("""
-# Run the full pipeline:
-python run_pipeline.py --model both --clustering both --benchmark
-
-# Or step by step:
-python run_pipeline.py                    # Basic pipeline
-python run_pipeline.py --model both       # Add BGE embeddings
-python run_pipeline.py --clustering both  # Add BERTopic
-python run_pipeline.py --benchmark        # Run retrieval benchmarks
-        """)
+    except FileNotFoundError:
+        st.error("Data files not found. Run the pipeline first:")
+        st.code("python run_pipeline.py --model both --clustering both --benchmark")
 
 
 if __name__ == "__main__":
