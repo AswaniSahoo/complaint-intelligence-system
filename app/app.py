@@ -152,6 +152,7 @@ def initialize_embedder():
     return ComplaintEmbedder()
 
 
+@st.cache_data
 def load_json_results(filename):
     """Load JSON results from data/results/ directory."""
     path = PROJECT_ROOT / "data" / "results" / filename
