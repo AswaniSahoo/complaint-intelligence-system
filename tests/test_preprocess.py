@@ -1,4 +1,4 @@
-"""Tests for src/preprocess.py — text cleaning and data loading."""
+"""Tests for src/preprocess.py | text cleaning and data loading."""
 
 import pytest
 import pandas as pd

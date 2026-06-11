@@ -1,16 +1,5 @@
-"""
-Complete pipeline script to process complaints end-to-end.
-Run this after setting up your environment and API keys.
+"""Main pipeline script. Processes complaints end-to-end."""
 
-Usage:
-    python run_pipeline.py                              # Full pipeline (MiniLM only, no LLM)
-    python run_pipeline.py --model both                 # Both embedding models
-    python run_pipeline.py --clustering both             # KMeans + BERTopic comparison
-    python run_pipeline.py --with-llm                   # Include LLM summarization
-    python run_pipeline.py --benchmark                  # Run retrieval benchmarks
-    python run_pipeline.py --sample-size 200000         # Large-scale run
-    python run_pipeline.py --model both --clustering both --benchmark  # Full showcase
-"""
 
 import os
 import argparse
@@ -20,10 +9,8 @@ import numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
-# Resolve project root
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 from src.preprocess import load_and_preprocess
@@ -37,7 +24,6 @@ from src.llm_utils import summarize_complaints
 
 
 def parse_args():
-    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Customer Complaint Intelligence System - Data Processing Pipeline"
     )
@@ -84,41 +70,28 @@ def parse_args():
 
 
 def main():
-    """Run the complete pipeline."""
     args = parse_args()
 
-    # Paths
     raw_data = args.raw_data or str(PROJECT_ROOT / "data" / "raw" / "complaints.csv")
     processed_data = str(PROJECT_ROOT / "data" / "processed" / "processed_complaints.csv")
     processed_dir = str(PROJECT_ROOT / "data" / "processed")
     results_dir = str(PROJECT_ROOT / "data" / "results")
 
-    print("=" * 60)
-    print("CUSTOMER COMPLAINT INTELLIGENCE SYSTEM - PIPELINE")
-    print("=" * 60)
-    print(f"\nConfig: sample_size={args.sample_size}, clusters={args.n_clusters}, "
-          f"model={args.model}, clustering={args.clustering}, "
-          f"llm={'yes' if args.with_llm else 'no'}, "
-          f"benchmark={'yes' if args.benchmark else 'no'}")
+    print(f"Pipeline: {args.sample_size} complaints, model={args.model}, "
+          f"clustering={args.clustering}")
 
-    # Step 1: Preprocess
-    print("\n[1/6] PREPROCESSING DATA...")
-    print("-" * 60)
+    print("\n[1/6] Preprocessing...")
     df = load_and_preprocess(raw_data, processed_data, sample_size=args.sample_size)
-    print(f"✓ Processed {len(df)} complaints")
+    print(f"Processed {len(df)} complaints")
 
-    # Step 2: Generate embeddings
-    print("\n[2/6] GENERATING EMBEDDINGS...")
-    print("-" * 60)
+    print("\n[2/6] Generating embeddings...")
 
     if args.model == "both":
         all_embeddings = generate_all_embeddings(
             df, text_column='clean_text', output_dir=processed_dir,
             model_keys=["minilm", "bge"]
         )
-        # Use minilm as default for clustering/RAG
         embeddings = all_embeddings["minilm"]
-        print(f"✓ Generated embeddings for both models")
         for key, emb in all_embeddings.items():
             print(f"  {key}: {emb.shape}")
     else:
@@ -128,18 +101,14 @@ def main():
             output_path=os.path.join(processed_dir, f"embeddings_{model_key}.npy"),
             model_key=model_key
         )
-        # Also save as default embeddings.npy for backward compat
         np.save(os.path.join(processed_dir, "embeddings.npy"), embeddings)
-        print(f"✓ Generated {model_key} embeddings: {embeddings.shape}")
+        print(f"{model_key} embeddings: {embeddings.shape}")
 
-    # Step 3: Cluster
-    print("\n[3/6] CLUSTERING COMPLAINTS...")
-    print("-" * 60)
+    print("\n[3/6] Clustering...")
 
     cluster_comparison = None
 
     if args.clustering in ("kmeans", "both"):
-        # KMeans clustering
         print("\n--- KMeans Clustering ---")
         df, cluster_keywords = cluster_complaints(
             df, embeddings, n_clusters=args.n_clusters
@@ -151,8 +120,7 @@ def main():
             print(f"  Cluster {cluster_id}: {', '.join(keywords[:5])}")
 
     if args.clustering in ("bertopic", "both"):
-        # BERTopic clustering
-        print("\n--- BERTopic Clustering ---")
+        print("\n--- BERTopic ---")
         bt_clusterer = BERTopicClusterer(
             min_cluster_size=max(50, len(df) // 200),
             min_samples=10,
@@ -162,12 +130,10 @@ def main():
         )
         df['topic'] = topic_labels
 
-        # Save BERTopic model
         bt_model_path = os.path.join(processed_dir, "bertopic_model")
         bt_clusterer.save_model(bt_model_path)
 
         if args.clustering == "both":
-            # Run comparison
             print("\n--- Cluster Quality Comparison ---")
             comparison = ClusterComparison.compare(
                 embeddings, kmeans_labels, topic_labels
@@ -179,47 +145,37 @@ def main():
             cluster_comparison = comparison
 
         if args.clustering == "bertopic":
-            # Use BERTopic labels as the primary cluster column
             df['cluster'] = topic_labels
 
-    # Save with clusters
     df.to_csv(processed_data, index=False)
-    print(f"✓ Saved clustered data to {processed_data}")
+    print(f"Saved to {processed_data}")
 
-    # Step 4: LLM Summarization (optional)
     if args.with_llm:
-        print("\n[4/6] GENERATING LLM SUMMARIES...")
-        print("-" * 60)
-        print(f"Provider: {args.provider}, Sample: {args.llm_sample}")
+        print(f"\n[4/6] LLM summarization ({args.provider}, {args.llm_sample} samples)...")
 
         llm_sample = min(args.llm_sample, len(df))
         df_sample = df.head(llm_sample)
 
         df_sample = summarize_complaints(df_sample, provider=args.provider, batch_size=10)
 
-        # Merge back to main df
         for col in ['llm_summary', 'llm_category', 'llm_urgency']:
             if col in df_sample.columns:
                 df[col] = None
                 df.loc[df_sample.index, col] = df_sample[col]
 
         df.to_csv(processed_data, index=False)
-        print(f"✓ Saved LLM results to {processed_data}")
+        print(f"Saved LLM results to {processed_data}")
     else:
         print("\n[4/6] Skipping LLM summarization (use --with-llm to enable)")
 
-    # Step 5: Embedding Benchmark (if both models were run)
     if args.model == "both":
-        print("\n[5/6] EMBEDDING BENCHMARK...")
-        print("-" * 60)
+        print("\n[5/6] Embedding benchmark...")
         from src.embedding_benchmark import EmbeddingBenchmark
 
-        # Load both embeddings
         emb_minilm = np.load(os.path.join(processed_dir, "embeddings_minilm.npy"))
         emb_bge = np.load(os.path.join(processed_dir, "embeddings_bge.npy"))
 
         benchmark = EmbeddingBenchmark(model_keys=["minilm", "bge"])
-        # Run on a sample for speed
         sample_size = min(5000, len(df))
         texts_sample = df['clean_text'].head(sample_size).tolist()
         cluster_labels = df['cluster'].head(sample_size).values if 'cluster' in df.columns else None
@@ -230,10 +186,8 @@ def main():
     else:
         print("\n[5/6] Skipping embedding benchmark (use --model both to enable)")
 
-    # Step 6: Retrieval Benchmark (optional)
     if args.benchmark:
-        print("\n[6/6] RETRIEVAL BENCHMARK...")
-        print("-" * 60)
+        print("\n[6/6] Retrieval benchmark...")
         from src.evaluation.retrieval_benchmark import RetrievalBenchmark
         from src.embeddings import ComplaintEmbedder
         from src.retrievers import (
@@ -243,7 +197,6 @@ def main():
 
         embedder = ComplaintEmbedder()
 
-        # Build retrievers
         vec = VectorRetriever(embedder=embedder, embedding_dim=embeddings.shape[1])
         vec.build_index(df, embeddings)
 
@@ -269,29 +222,12 @@ def main():
     else:
         print("\n[6/6] Skipping retrieval benchmark (use --benchmark to enable)")
 
-    # Final summary
-    print("\n" + "=" * 60)
-    print("PIPELINE COMPLETE!")
-    print("=" * 60)
-    print(f"\nProcessed files:")
-    print(f"  - {processed_data}")
-    print(f"  - {processed_dir}/embeddings_*.npy")
-    if os.path.exists(results_dir):
-        print(f"  - {results_dir}/ (benchmark results)")
-    print(f"\nDataset stats:")
-    print(f"  - Total complaints: {len(df)}")
-    print(f"  - Clusters: {df['cluster'].nunique()}")
+    print(f"\nDone. {len(df)} complaints, {df['cluster'].nunique()} clusters.")
     if 'topic' in df.columns:
         n_topics = df['topic'].nunique()
         n_outliers = (df['topic'] == -1).sum()
-        print(f"  - BERTopic topics: {n_topics} ({n_outliers} outliers)")
-    if 'llm_summary' in df.columns:
-        print(f"  - LLM summaries: {df['llm_summary'].notna().sum()}")
-
-    print("\n" + "=" * 60)
-    print("Next step: Run the dashboard")
-    print("  streamlit run app/app.py")
-    print("=" * 60)
+        print(f"BERTopic: {n_topics} topics, {n_outliers} outliers")
+    print(f"\nRun the dashboard: streamlit run app/app.py")
 
 
 if __name__ == "__main__":

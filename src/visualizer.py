@@ -1,15 +1,6 @@
 """
-Embedding Visualizer — UMAP projections and comparison plots.
-
-Provides:
-    - UMAP 2D projections of high-dimensional embeddings
-    - Side-by-side embedding model comparison (MiniLM vs BGE)
-    - Cluster-colored scatter plots
-    - Retriever comparison radar charts
-    - Cluster quality comparison bar charts
-
-All plots are built with Plotly for interactive Streamlit embedding.
-UMAP projections are cached to disk since they are expensive to compute.
+UMAP projections and comparison plots for embeddings and retrieval results.
+All plots use Plotly for Streamlit integration. UMAP projections are cached.
 """
 
 import json
@@ -30,29 +21,13 @@ class EmbeddingVisualizer:
     """Generate UMAP projections and comparison plots for embeddings."""
 
     def __init__(self, cache_dir=None):
-        """
-        Args:
-            cache_dir: Directory to cache UMAP projections. If None, no caching.
-        """
         self.cache_dir = cache_dir
 
     def generate_umap_projection(self, embeddings, n_neighbors=15,
                                  min_dist=0.1, random_state=42,
                                  cache_key=None):
-        """
-        Reduce embeddings to 2D using UMAP.
+        """Reduce embeddings to 2D using UMAP. Caches results if cache_key given."""
 
-        Args:
-            embeddings: numpy array of shape (n, dim).
-            n_neighbors: UMAP n_neighbors parameter.
-            min_dist: UMAP min_dist parameter.
-            random_state: Random seed.
-            cache_key: Key for caching (e.g. "minilm" or "bge").
-
-        Returns:
-            numpy array of shape (n, 2)
-        """
-        # Check cache
         if cache_key and self.cache_dir:
             cache_path = os.path.join(self.cache_dir, f"umap_{cache_key}.npy")
             if os.path.exists(cache_path):
@@ -73,7 +48,7 @@ class EmbeddingVisualizer:
         projection = reducer.fit_transform(embeddings)
         print(f"UMAP complete: {projection.shape}")
 
-        # Save cache
+
         if cache_key and self.cache_dir:
             os.makedirs(self.cache_dir, exist_ok=True)
             np.save(cache_path, projection)
@@ -83,19 +58,7 @@ class EmbeddingVisualizer:
 
     def plot_embedding_space(self, projection, labels, label_name="Cluster",
                              title="Embedding Space (UMAP)", hover_texts=None):
-        """
-        Create a 2D scatter plot of the embedding space.
-
-        Args:
-            projection: numpy array of shape (n, 2) from UMAP.
-            labels: array of labels for coloring (cluster IDs, products, etc.).
-            label_name: Name for the color legend.
-            title: Plot title.
-            hover_texts: Optional list of hover text strings.
-
-        Returns:
-            plotly Figure
-        """
+        """2D scatter plot of the embedding space."""
         df_plot = pd.DataFrame({
             "UMAP-1": projection[:, 0],
             "UMAP-2": projection[:, 1],
@@ -127,18 +90,7 @@ class EmbeddingVisualizer:
 
     def plot_model_comparison(self, projections, labels, model_names,
                               label_name="Cluster"):
-        """
-        Side-by-side UMAP plots comparing two embedding models.
-
-        Args:
-            projections: dict mapping model_key to (n, 2) UMAP projection.
-            labels: array of labels for coloring.
-            model_names: dict mapping model_key to display name.
-            label_name: Name for the color legend.
-
-        Returns:
-            plotly Figure with subplots
-        """
+        """Side-by-side UMAP subplots comparing embedding models."""
         keys = list(projections.keys())
         fig = make_subplots(
             rows=1, cols=len(keys),
@@ -146,7 +98,6 @@ class EmbeddingVisualizer:
             horizontal_spacing=0.08,
         )
 
-        # Generate consistent colors
         unique_labels = sorted(set(str(l) for l in labels))
         colors = px.colors.qualitative.Set2
         color_map = {label: colors[i % len(colors)]
@@ -176,15 +127,7 @@ class EmbeddingVisualizer:
         return fig
 
     def plot_retrieval_comparison(self, benchmark_results):
-        """
-        Radar chart comparing retriever latencies.
-
-        Args:
-            benchmark_results: dict from RetrievalBenchmark.results
-
-        Returns:
-            plotly Figure
-        """
+        """Bar chart comparing retriever latencies (p50/p95)."""
         retrievers = []
         p50_values = []
         p95_values = []
@@ -219,16 +162,7 @@ class EmbeddingVisualizer:
         return fig
 
     def plot_cluster_comparison(self, comparison_results):
-        """
-        Bar chart comparing clustering quality metrics.
-
-        Args:
-            comparison_results: dict with "kmeans" and "bertopic" metric dicts
-                                from ClusterComparison.compare()
-
-        Returns:
-            plotly Figure
-        """
+        """Bar chart comparing KMeans vs BERTopic quality metrics."""
         methods = []
         metrics_data = {"Silhouette": [], "Davies-Bouldin": []}
 

@@ -73,7 +73,7 @@ class TestBM25Retriever:
         assert latency >= 0
 
 
-# ---------- Tree Retriever (no LLM — fallback mode) --------------------------
+# ---------- Tree Retriever (no LLM | fallback mode) --------------------------
 
 class TestTreeRetriever:
 

@@ -1,12 +1,9 @@
 """
-Embedding generation module for complaint text using sentence-transformers.
-Supports GPU acceleration when CUDA is available.
+Embedding generation using sentence-transformers.
 
 Models:
-    - all-MiniLM-L6-v2 (384d): Fast, lightweight baseline (2022-era)
-    - BAAI/bge-base-en-v1.5 (768d): SOTA MTEB performer (2024-era)
-
-Provides multi-model comparison for benchmarking old vs new embeddings.
+    - all-MiniLM-L6-v2 (384d): fast, lightweight
+    - BAAI/bge-base-en-v1.5 (768d): higher quality, slower
 """
 from sentence_transformers import SentenceTransformer
 import numpy as np
@@ -16,19 +13,17 @@ import time
 import torch
 
 
-# -- Model Registry -----------------------------------------------------------
-
 EMBEDDING_MODELS = {
     "minilm": {
         "name": "all-MiniLM-L6-v2",
         "dim": 384,
-        "description": "Lightweight baseline (2022), fast encoding",
+        "description": "Lightweight, fast encoding",
         "query_prefix": "",
     },
     "bge": {
         "name": "BAAI/bge-base-en-v1.5",
         "dim": 768,
-        "description": "SOTA MTEB performer (2024), high accuracy",
+        "description": "Higher quality, better separation",
         "query_prefix": "Represent this sentence: ",
     },
 }
@@ -36,19 +31,10 @@ EMBEDDING_MODELS = {
 DEFAULT_MODEL = "minilm"
 
 
-# -- Core Embedder ------------------------------------------------------------
-
 class ComplaintEmbedder:
     """Generate embeddings for complaint text using sentence-transformers."""
     
     def __init__(self, model_name='all-MiniLM-L6-v2'):
-        """
-        Initialize the embedder with a sentence transformer model.
-        
-        Args:
-            model_name: Name of the sentence-transformers model
-        """
-        # Auto-detect GPU if available
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
         print(f"Loading embedding model: {model_name}")
@@ -62,17 +48,7 @@ class ComplaintEmbedder:
         print(f"Model loaded. Embedding dimension: {self.embedding_dim}")
     
     def encode(self, texts, batch_size=32, show_progress=True):
-        """
-        Generate embeddings for a list of texts.
-        
-        Args:
-            texts: List of text strings
-            batch_size: Batch size for encoding
-            show_progress: Show progress bar
-        
-        Returns:
-            numpy array of embeddings
-        """
+        """Generate embeddings for a list of texts. Returns numpy array."""
         if isinstance(texts, pd.Series):
             texts = texts.tolist()
         
@@ -99,32 +75,15 @@ class ComplaintEmbedder:
         return embeddings
 
 
-# -- Multi-Model Registry -----------------------------------------------------
-
 class EmbeddingRegistry:
-    """Manage multiple embedding models for side-by-side comparison.
-
-    Example::
-
-        registry = EmbeddingRegistry()
-        registry.load_model("minilm")
-        registry.load_model("bge")
-
-        results = registry.encode_all(texts)
-        # results = {"minilm": np.array(...), "bge": np.array(...)}
-    """
+    """Manage multiple embedding models for comparison."""
 
     def __init__(self):
         self.models = {}   # key -> ComplaintEmbedder
         self.configs = {}  # key -> model config dict
 
     def load_model(self, key):
-        """
-        Load a model by its registry key.
-
-        Args:
-            key: One of the keys in EMBEDDING_MODELS (e.g. "minilm", "bge")
-        """
+        """Load a model by its registry key (e.g. 'minilm', 'bge')."""
         if key in self.models:
             print(f"Model '{key}' already loaded, skipping.")
             return
@@ -140,18 +99,7 @@ class EmbeddingRegistry:
         self.models[key] = ComplaintEmbedder(model_name=config["name"])
 
     def encode(self, key, texts, batch_size=32, show_progress=True):
-        """
-        Encode texts with a specific model.
-
-        Args:
-            key: Model registry key.
-            texts: List of text strings.
-            batch_size: Batch size for encoding.
-            show_progress: Show progress bar.
-
-        Returns:
-            numpy array of embeddings
-        """
+        """Encode texts with a specific model. Returns numpy array."""
         if key not in self.models:
             raise ValueError(f"Model '{key}' not loaded. Call load_model('{key}') first.")
 
@@ -166,17 +114,7 @@ class EmbeddingRegistry:
         return self.models[key].encode(texts, batch_size=batch_size, show_progress=show_progress)
 
     def encode_all(self, texts, batch_size=32, show_progress=True):
-        """
-        Encode texts with ALL loaded models and return a dict.
-
-        Args:
-            texts: List of text strings.
-            batch_size: Batch size for encoding.
-            show_progress: Show progress bar.
-
-        Returns:
-            dict mapping model key to numpy array of embeddings
-        """
+        """Encode texts with all loaded models. Returns dict of arrays."""
         results = {}
         for key in self.models:
             print(f"\n--- Encoding with '{key}' ({self.configs[key]['name']}) ---")
@@ -201,23 +139,9 @@ class EmbeddingRegistry:
         return list(self.models.keys())
 
 
-# -- Convenience functions (backward compatible) -------------------------------
-
 def generate_embeddings(df, text_column='clean_text', output_path=None,
                         model_key=None):
-    """
-    Generate embeddings for complaints dataframe.
-    
-    Args:
-        df: DataFrame with complaint text
-        text_column: Column name containing text to embed
-        output_path: Path to save embeddings (optional)
-        model_key: Registry key (e.g. "minilm", "bge"). If None, uses
-                   DEFAULT_MODEL for backward compatibility.
-    
-    Returns:
-        numpy array of embeddings
-    """
+    """Generate embeddings for a DataFrame column. Returns numpy array."""
     if model_key and model_key in EMBEDDING_MODELS:
         config = EMBEDDING_MODELS[model_key]
         embedder = ComplaintEmbedder(model_name=config["name"])
@@ -238,18 +162,7 @@ def generate_embeddings(df, text_column='clean_text', output_path=None,
 
 def generate_all_embeddings(df, text_column='clean_text', output_dir=None,
                             model_keys=None):
-    """
-    Generate embeddings from multiple models and save each separately.
-
-    Args:
-        df: DataFrame with complaint text.
-        text_column: Column name containing text to embed.
-        output_dir: Directory to save embedding files (optional).
-        model_keys: List of registry keys. Defaults to all available.
-
-    Returns:
-        dict mapping model key to numpy array of embeddings
-    """
+    """Generate embeddings from multiple models. Returns dict of arrays."""
     if model_keys is None:
         model_keys = list(EMBEDDING_MODELS.keys())
 
@@ -270,7 +183,7 @@ def generate_all_embeddings(df, text_column='clean_text', output_dir=None,
 
 
 if __name__ == "__main__":
-    # Example usage
+    # Quick test
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data_path = os.path.join(base_dir, "data", "processed", "processed_complaints.csv")
     output_dir = os.path.join(base_dir, "data", "processed")

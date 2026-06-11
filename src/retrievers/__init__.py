@@ -1,13 +1,15 @@
 """
 Retrieval strategies for complaint search.
 
-Provides multiple retrieval approaches:
+Core strategies used in the pipeline:
     - VectorRetriever: FAISS dense semantic search
     - BM25Retriever: Sparse keyword-based retrieval
     - HybridRetriever: Ensemble of Vector + BM25 with Reciprocal Rank Fusion
+    - RerankedRetriever: Wraps any retriever with cross-encoder reranking
+
+Experimental (not used in default pipeline):
     - HyDERetriever: Hypothetical Document Embeddings
     - TreeRetriever: PageIndex-inspired hierarchical reasoning-based retrieval
-    - RerankedRetriever: Wraps any retriever with cross-encoder reranking
 """
 
 from src.retrievers.base import BaseRetriever, RetrievalResult

@@ -1,0 +1,55 @@
+{
+  "minilm": {
+    "model_name": "all-MiniLM-L6-v2",
+    "embedding_dim": 384,
+    "num_texts": 5000,
+    "encoding_time_sec": 13.35,
+    "throughput_texts_per_sec": 374.6,
+    "memory_mb": 7.32,
+    "cosine_similarity": {
+      "mean": 0.4125,
+      "std": 0.1362,
+      "min": -0.0395,
+      "max": 1.0,
+      "p25": 0.3163,
+      "p50": 0.4097,
+      "p75": 0.509
+    },
+    "cluster_separation": {
+      "intra_cluster_sim": 0.5302,
+      "inter_cluster_sim": 0.3971,
+      "separation": 0.1332,
+      "n_clusters": 6
+    }
+  },
+  "bge": {
+    "model_name": "BAAI/bge-base-en-v1.5",
+    "embedding_dim": 768,
+    "num_texts": 5000,
+    "encoding_time_sec": 83.69,
+    "throughput_texts_per_sec": 59.7,
+    "memory_mb": 14.65,
+    "cosine_similarity": {
+      "mean": 0.7202,
+      "std": 0.0664,
+      "min": 0.4556,
+      "max": 1.0,
+      "p25": 0.6774,
+      "p50": 0.7236,
+      "p75": 0.7671
+    },
+    "cluster_separation": {
+      "intra_cluster_sim": 0.77,
+      "inter_cluster_sim": 0.7118,
+      "separation": 0.0581,
+      "n_clusters": 6
+    }
+  },
+  "cross_model": {
+    "model_a": "minilm",
+    "model_b": "bge",
+    "top10_overlap_mean": 0.385,
+    "top10_overlap_std": 0.2291,
+    "interpretation": "Higher overlap means models agree on which texts are similar. Low overlap (<0.3) suggests they capture different semantic aspects."
+  }
+}

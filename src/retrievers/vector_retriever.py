@@ -1,9 +1,4 @@
-"""
-Vector Retriever — Dense semantic search using FAISS.
-
-Uses sentence-transformer embeddings and FAISS IndexFlatIP (inner product
-on L2-normalized vectors = cosine similarity) for fast nearest-neighbor search.
-"""
+"""Dense semantic search using FAISS (cosine similarity via IndexFlatIP)."""
 
 import logging
 from typing import List, Optional
@@ -22,25 +17,14 @@ class VectorRetriever(BaseRetriever):
 
     name = "vector"
 
-    def __init__(self, embedder=None, embedding_dim: int = 384):
-        """
-        Args:
-            embedder: A ComplaintEmbedder instance (needed for query encoding).
-            embedding_dim: Dimension of the embedding vectors.
-        """
+    def __init__(self, embedder=None, embedding_dim=384):
         self.embedder = embedder
         self.embedding_dim = embedding_dim
         self.index: Optional[faiss.IndexFlatIP] = None
         self.df: Optional[pd.DataFrame] = None
 
-    def build_index(self, df: pd.DataFrame, embeddings: np.ndarray = None, **kwargs):
-        """
-        Build FAISS index from precomputed embeddings.
-
-        Args:
-            df: Complaints DataFrame.
-            embeddings: numpy array of shape (n, embedding_dim).
-        """
+    def build_index(self, df, embeddings=None, **kwargs):
+        """Build FAISS index from precomputed embeddings."""
         if embeddings is None:
             raise ValueError("VectorRetriever requires precomputed embeddings.")
 
@@ -62,12 +46,10 @@ class VectorRetriever(BaseRetriever):
         if self.embedder is None:
             raise RuntimeError("VectorRetriever needs an embedder for query encoding.")
 
-        # Encode and normalize query
         query_vec = self.embedder.encode([query], show_progress=False)[0]
         query_vec = query_vec.astype("float32").reshape(1, -1)
         faiss.normalize_L2(query_vec)
 
-        # Search
         k = min(k, self.index.ntotal)
         distances, indices = self.index.search(query_vec, k)
 

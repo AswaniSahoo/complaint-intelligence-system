@@ -1,0 +1,18 @@
+{
+  "kmeans": {
+    "method": "KMeans",
+    "n_clusters": 6,
+    "n_outliers": 0,
+    "silhouette": 0.0338,
+    "calinski_harabasz": 7023.09,
+    "davies_bouldin": 3.7921
+  },
+  "bertopic": {
+    "method": "BERTopic",
+    "n_clusters": 30,
+    "n_outliers": 110456,
+    "silhouette": 0.0301,
+    "calinski_harabasz": 1105.17,
+    "davies_bouldin": 3.1658
+  }
+}

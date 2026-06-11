@@ -315,7 +315,7 @@ def clusters_page(df):
     sample_df = cluster_df.sample(n=sample_size, random_state=42)
 
     for _, row in sample_df.iterrows():
-        with st.expander(f"{row['product']} — {str(row['issue'])[:60]}"):
+        with st.expander(f"{row['product']} | {str(row['issue'])[:60]}"):
             st.write(f"**Product:** {row['product']}")
             st.write(f"**Issue:** {row['issue']}")
             date_str = row['date'].strftime('%Y-%m-%d') if pd.notna(row['date']) else 'N/A'
@@ -398,7 +398,7 @@ def viewer_page(df):
 def qa_page(df, rag, embedder):
     """Search page for natural language queries."""
     st.markdown('<div class="main-header">Semantic Search</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Search complaints using natural language — powered by FAISS vector similarity</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Search complaints using natural language | powered by FAISS vector similarity</div>', unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -428,7 +428,7 @@ def qa_page(df, rag, embedder):
                 for i, result in enumerate(response['results'], 1):
                     sim_pct = result['similarity'] * 100
 
-                    with st.expander(f"#{i} — {result['product']} ({sim_pct:.1f}% match)"):
+                    with st.expander(f"#{i} | {result['product']} ({sim_pct:.1f}% match)"):
                         col1, col2 = st.columns([2, 1])
                         with col1:
                             text = result['complaint_text']
@@ -463,7 +463,7 @@ def qa_page(df, rag, embedder):
 def embedding_comparison_page(df):
     """Embedding model comparison."""
     st.markdown('<div class="main-header">Embedding Model Comparison</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">MiniLM (384d, 2022 baseline) vs BGE (768d, 2024 SOTA) — benchmarked on 5K sample</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">MiniLM (384d, 2022 baseline) vs BGE (768d, 2024 SOTA) | benchmarked on 5K sample</div>', unsafe_allow_html=True)
 
     st.markdown("---")
 

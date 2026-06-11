@@ -1,13 +1,5 @@
 """
-Embedding Benchmark — Head-to-head comparison of embedding models.
-
-Compares models registered in EMBEDDING_MODELS on:
-    - Encoding throughput (texts/sec)
-    - Cosine similarity distributions
-    - Intra-cluster vs inter-cluster similarity (if cluster labels available)
-    - Memory footprint
-
-Designed to run on Colab T4 or local GPU for 200K+ texts.
+Embedding benchmark - compare models on throughput, similarity, and cluster separation.
 """
 
 import argparse
@@ -27,33 +19,13 @@ class EmbeddingBenchmark:
     """Run head-to-head comparison across multiple embedding models."""
 
     def __init__(self, model_keys=None):
-        """
-        Args:
-            model_keys: List of registry keys to compare.
-                        Defaults to all available models.
-        """
         self.model_keys = model_keys or list(EMBEDDING_MODELS.keys())
         self.registry = EmbeddingRegistry()
         self.results = {}
 
     def run(self, texts, cluster_labels=None, batch_size=64):
-        """
-        Run the full benchmark suite.
-
-        Args:
-            texts: List of text strings to encode.
-            cluster_labels: Optional array of cluster labels (same length as texts).
-            batch_size: Batch size for encoding.
-
-        Returns:
-            dict with benchmark results for each model
-        """
-        print("=" * 60)
-        print("EMBEDDING BENCHMARK")
-        print("=" * 60)
-        print(f"Models: {self.model_keys}")
-        print(f"Texts: {len(texts)}")
-        print()
+        """Run the full benchmark. Returns dict of results per model."""
+        print(f"Embedding benchmark: {len(texts)} texts, models={self.model_keys}")
 
         for key in self.model_keys:
             self.registry.load_model(key)
@@ -61,11 +33,9 @@ class EmbeddingBenchmark:
         all_embeddings = {}
 
         for key in self.model_keys:
-            print(f"\n{'=' * 60}")
-            print(f"Benchmarking: {key} ({EMBEDDING_MODELS[key]['name']})")
-            print(f"{'=' * 60}")
+            print(f"\nBenchmarking: {key} ({EMBEDDING_MODELS[key]['name']})")
 
-            # Throughput benchmark
+
             start = time.perf_counter()
             embeddings = self.registry.encode(
                 key, texts, batch_size=batch_size, show_progress=True
@@ -77,10 +47,10 @@ class EmbeddingBenchmark:
             throughput = len(texts) / elapsed
             memory_mb = embeddings.nbytes / (1024 * 1024)
 
-            # Cosine similarity distribution (sample pairs)
+
             sim_stats = self._cosine_similarity_stats(embeddings, n_pairs=5000)
 
-            # Intra/inter cluster similarity
+
             cluster_stats = {}
             if cluster_labels is not None:
                 cluster_stats = self._cluster_similarity(
@@ -103,7 +73,7 @@ class EmbeddingBenchmark:
             print(f"  Memory: {memory_mb:.2f} MB")
             print(f"  Cosine sim (mean): {sim_stats['mean']:.4f}")
 
-        # Cross-model comparison
+        # Compare nearest neighbors across models
         if len(all_embeddings) >= 2:
             self.results["cross_model"] = self._cross_model_comparison(
                 all_embeddings, texts
@@ -116,15 +86,14 @@ class EmbeddingBenchmark:
         n = len(embeddings)
         n_pairs = min(n_pairs, n * (n - 1) // 2)
 
-        # Normalize
+        # Normalize for cosine sim
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
         normed = embeddings / (norms + 1e-10)
 
-        # Random pairs
+
         rng = np.random.default_rng(42)
         idx_a = rng.integers(0, n, size=n_pairs)
         idx_b = rng.integers(0, n, size=n_pairs)
-        # Avoid self-pairs
         mask = idx_a != idx_b
         idx_a, idx_b = idx_a[mask], idx_b[mask]
 
@@ -146,7 +115,6 @@ class EmbeddingBenchmark:
         normed = embeddings / (norms + 1e-10)
 
         unique_labels = np.unique(labels)
-        # Skip outlier label (-1 from HDBSCAN)
         unique_labels = unique_labels[unique_labels >= 0]
 
         if len(unique_labels) < 2:
@@ -204,11 +172,11 @@ class EmbeddingBenchmark:
         emb_a = all_embeddings[key_a]
         emb_b = all_embeddings[key_b]
 
-        # Normalize
+
         norm_a = emb_a / (np.linalg.norm(emb_a, axis=1, keepdims=True) + 1e-10)
         norm_b = emb_b / (np.linalg.norm(emb_b, axis=1, keepdims=True) + 1e-10)
 
-        # For a sample of queries, compute top-10 neighbors in both spaces
+
         rng = np.random.default_rng(42)
         n_queries = min(100, len(texts))
         query_indices = rng.choice(len(texts), size=n_queries, replace=False)
@@ -244,9 +212,7 @@ class EmbeddingBenchmark:
 
     def print_summary(self):
         """Print a comparison table of all models."""
-        print("\n" + "=" * 60)
-        print("BENCHMARK SUMMARY")
-        print("=" * 60)
+        print(f"\nBenchmark summary:")
 
         header = f"{'Model':<12} {'Dim':>5} {'Speed (t/s)':>12} {'Mem (MB)':>10} {'Sim Mean':>10} {'Separation':>12}"
         print(header)

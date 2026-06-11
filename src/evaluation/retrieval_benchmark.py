@@ -1,5 +1,5 @@
 """
-Retrieval Benchmark — Compare all retrieval strategies head-to-head.
+Retrieval Benchmark - compare retrieval strategies head-to-head.
 
 Runs a fixed set of test queries across every retriever and measures:
     - Latency: p50, p95, p99 response times
@@ -53,26 +53,12 @@ class RetrievalBenchmark:
     """Benchmark multiple retrieval strategies on the same query set."""
 
     def __init__(self, queries=None):
-        """
-        Args:
-            queries: List of test query strings. Defaults to DEFAULT_QUERIES.
-        """
         self.queries = queries or DEFAULT_QUERIES
         self.results = {}
 
     def benchmark_retriever(self, retriever: BaseRetriever, k: int = 5,
                             n_runs: int = 1):
-        """
-        Benchmark a single retriever.
-
-        Args:
-            retriever: A BaseRetriever instance with a built index.
-            k: Number of results to retrieve per query.
-            n_runs: Number of times to repeat each query (for stable timing).
-
-        Returns:
-            dict with latency and quality metrics
-        """
+        """Benchmark a single retriever and calculate latency metrics."""
         name = retriever.name
         print(f"\nBenchmarking retriever: {name}")
         print(f"  Queries: {len(self.queries)}, k={k}, runs={n_runs}")
@@ -125,17 +111,7 @@ class RetrievalBenchmark:
 
     def benchmark_all(self, retrievers: Dict[str, BaseRetriever],
                       k: int = 5, n_runs: int = 1):
-        """
-        Benchmark all provided retrievers.
-
-        Args:
-            retrievers: Dict mapping name to BaseRetriever instance.
-            k: Number of results per query.
-            n_runs: Repeat count per query.
-
-        Returns:
-            dict with all benchmark results
-        """
+        """Benchmark all provided retrievers on the query set."""
         print("=" * 60)
         print("RETRIEVAL BENCHMARK")
         print("=" * 60)

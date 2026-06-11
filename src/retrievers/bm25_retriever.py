@@ -1,10 +1,4 @@
-"""
-BM25 Retriever — Sparse keyword-based retrieval.
-
-Uses the Okapi BM25 algorithm for term-frequency-based ranking.
-No vectors needed — purely lexical matching. Good baseline and
-excels on keyword-heavy / exact-match queries.
-"""
+"""BM25 sparse keyword retrieval using Okapi BM25. No vectors needed."""
 
 import logging
 from typing import List, Optional
@@ -35,14 +29,8 @@ class BM25Retriever(BaseRetriever):
         self.df: Optional[pd.DataFrame] = None
         self.corpus_tokens: Optional[List[List[str]]] = None
 
-    def build_index(self, df: pd.DataFrame, embeddings=None, **kwargs):
-        """
-        Build BM25 index from the clean_text column.
-
-        Args:
-            df: Complaints DataFrame (must have 'clean_text' column).
-            embeddings: Ignored — BM25 is vectorless.
-        """
+    def build_index(self, df, embeddings=None, **kwargs):
+        """Build BM25 index from the clean_text column."""
         text_column = kwargs.get("text_column", "clean_text")
         self.df = df.reset_index(drop=True)
 
@@ -55,7 +43,7 @@ class BM25Retriever(BaseRetriever):
             n_empty = sum(1 for v in valid_mask if not v)
             logger.warning("BM25Retriever: %d documents had empty tokens (skipped in index)", n_empty)
 
-        # BM25Okapi crashes on empty corpus — guard against it
+        # BM25Okapi crashes on empty corpus, guard against it
         non_empty_tokens = [t for t in self.corpus_tokens if len(t) > 0]
         if not non_empty_tokens:
             logger.warning("BM25Retriever: no valid documents to index")
@@ -81,7 +69,6 @@ class BM25Retriever(BaseRetriever):
 
         scores = self.bm25.get_scores(query_tokens)
 
-        # Get top-k indices
         k = min(k, len(self.df))
         top_indices = np.argsort(scores)[::-1][:k]
 

@@ -1,19 +1,7 @@
 """
-Tree Retriever — PageIndex-inspired hierarchical reasoning-based retrieval.
-
-Inspired by VectifyAI's PageIndex (vectorless, reasoning-based RAG), this
-retriever builds a hierarchical tree from complaint metadata:
-
-    Product → Issue → Cluster → Complaints
-
-Instead of vector similarity, it uses an LLM to *reason* about which branch
-of the tree is most relevant to the query, then drills down to retrieve
-individual complaints.  This is fully vectorless — no embeddings needed.
-
-Key advantages:
-    - Explainable: the retrieval path is fully traceable.
-    - Context-aware: the LLM considers the full query + tree structure.
-    - Human-like: mimics how a domain expert navigates complaint categories.
+Tree retriever: hierarchical reasoning-based retrieval (vectorless).
+Builds a Product -> Issue -> Cluster tree and uses LLM to navigate it.
+Inspired by VectifyAI's PageIndex approach.
 """
 
 import logging
@@ -27,7 +15,7 @@ from src.retrievers.base import BaseRetriever, RetrievalResult
 
 logger = logging.getLogger(__name__)
 
-# ---- Prompts ----------------------------------------------------------------
+
 
 BRANCH_SELECTION_PROMPT = """You are an expert complaint analyst. Given a user query and a list of categories, 
 select the TOP {top_n} most relevant categories that would contain complaints matching this query.
@@ -56,7 +44,7 @@ Example: [2, 0, 4]
 Your ranking:"""
 
 
-# ---- Tree Node ---------------------------------------------------------------
+
 
 class TreeNode:
     """A node in the complaint hierarchy tree."""
@@ -90,32 +78,21 @@ class TreeNode:
         return f"{self.name} ({self.count} complaints)"
 
 
-# ---- Tree Retriever ----------------------------------------------------------
+
 
 class TreeRetriever(BaseRetriever):
     """PageIndex-inspired hierarchical tree retrieval (vectorless)."""
 
     name = "tree"
 
-    def __init__(self, llm_summarizer=None, max_leaf_results: int = 20):
-        """
-        Args:
-            llm_summarizer: LLMSummarizer instance for reasoning.
-            max_leaf_results: Max complaints to consider at leaf level.
-        """
+    def __init__(self, llm_summarizer=None, max_leaf_results=20):
         self.llm = llm_summarizer
         self.max_leaf_results = max_leaf_results
         self.root: Optional[TreeNode] = None
         self.df: Optional[pd.DataFrame] = None
 
-    def build_index(self, df: pd.DataFrame, embeddings=None, **kwargs):
-        """
-        Build hierarchical tree: Product → Issue → Cluster → Complaints.
-
-        Args:
-            df: Complaints DataFrame with 'product', 'issue', and optionally 'cluster'.
-            embeddings: Ignored — this retriever is vectorless.
-        """
+    def build_index(self, df, embeddings=None, **kwargs):
+        """Build hierarchical tree: Product -> Issue -> Cluster -> Complaints."""
         self.df = df.reset_index(drop=True)
         self.root = TreeNode(name="All Complaints", level="root")
 
@@ -126,23 +103,19 @@ class TreeRetriever(BaseRetriever):
             issue = str(row.get("issue", "Unknown"))
             cluster = str(int(row["cluster"])) if has_cluster and pd.notna(row.get("cluster")) else "0"
 
-            # Product level
             if product not in self.root.children:
                 self.root.children[product] = TreeNode(product, "product", parent=self.root)
             product_node = self.root.children[product]
 
-            # Issue level
             if issue not in product_node.children:
                 product_node.children[issue] = TreeNode(issue, "issue", parent=product_node)
             issue_node = product_node.children[issue]
 
-            # Cluster level
             cluster_name = f"Cluster {cluster}"
             if cluster_name not in issue_node.children:
                 issue_node.children[cluster_name] = TreeNode(cluster_name, "cluster", parent=issue_node)
             cluster_node = issue_node.children[cluster_name]
 
-            # Leaf: store DataFrame index
             cluster_node.complaint_indices.append(idx)
 
         n_products = len(self.root.children)
@@ -153,7 +126,6 @@ class TreeRetriever(BaseRetriever):
     def _llm_select_branches(self, query: str, options: List[str], top_n: int = 3) -> List[str]:
         """Use LLM to select the most relevant branches."""
         if self.llm is None or not options:
-            # Fallback: return top-n by complaint count (no LLM)
             return options[:top_n]
 
         categories_str = "\n".join(f"- {opt}" for opt in options)
@@ -174,10 +146,8 @@ class TreeRetriever(BaseRetriever):
                 )
                 raw = response.choices[0].message.content.strip()
 
-            # Parse JSON array from response
             selected = json.loads(raw)
             if isinstance(selected, list):
-                # Filter to only valid options
                 valid = [s for s in selected if s in options]
                 return valid[:top_n] if valid else options[:top_n]
         except Exception as e:
@@ -217,23 +187,14 @@ class TreeRetriever(BaseRetriever):
 
         return list(range(min(top_n, len(snippets))))
 
-    def retrieve(self, query: str, k: int = 5) -> List[RetrievalResult]:
-        """
-        Traverse the tree using LLM reasoning to find relevant complaints.
-
-        Retrieval path:
-            1. LLM selects top products for the query.
-            2. Within those products, LLM selects top issues.
-            3. Collect candidate complaints from selected branches.
-            4. LLM ranks the candidates and returns top-k.
-        """
+    def retrieve(self, query, k=5):
+        """Navigate the tree using LLM reasoning, return top-k complaints."""
         if self.root is None or self.df is None:
             raise RuntimeError("Tree not built. Call build_index() first.")
         if not query or not query.strip():
             logger.warning("TreeRetriever: empty query received")
             return []
 
-        # Step 1: Select products
         product_options = sorted(
             self.root.children.keys(),
             key=lambda p: self.root.children[p].count,
@@ -242,8 +203,7 @@ class TreeRetriever(BaseRetriever):
         selected_products = self._llm_select_branches(query, product_options, top_n=3)
         logger.info("TreeRetriever: selected products = %s", selected_products)
 
-        # Step 2: Select issues within selected products
-        candidate_indices: List[int] = []
+        candidate_indices = []
         retrieval_path: List[str] = []
 
         for product_name in selected_products:
@@ -265,7 +225,6 @@ class TreeRetriever(BaseRetriever):
 
                 retrieval_path.append(f"{product_name} → {issue_name}")
 
-                # Collect complaint indices from all clusters under this issue
                 for cluster_node in issue_node.children.values():
                     candidate_indices.extend(cluster_node.complaint_indices)
 
@@ -273,20 +232,17 @@ class TreeRetriever(BaseRetriever):
             logger.warning("TreeRetriever: no candidates found for query")
             return []
 
-        # Step 3: Limit candidates and rank with LLM
         candidate_indices = candidate_indices[:self.max_leaf_results]
         snippets = [str(self.df.iloc[idx].get("clean_text", ""))[:200] for idx in candidate_indices]
 
         ranked_positions = self._llm_rank_complaints(query, snippets, top_n=k)
 
-        # Step 4: Build results
-        results: List[RetrievalResult] = []
+        results = []
         for rank, pos in enumerate(ranked_positions, start=1):
             if pos >= len(candidate_indices):
                 continue
             idx = candidate_indices[pos]
             row = self.df.iloc[idx]
-            # Score is inverse rank (higher = better) since tree retrieval has no numeric score
             score = 1.0 / rank
             result = self._build_result(
                 row, score=score, rank=rank,

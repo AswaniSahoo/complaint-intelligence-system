@@ -10,13 +10,6 @@ class LLMSummarizer:
     """Summarize and categorize complaints using various LLM APIs."""
     
     def __init__(self, provider='gemini', api_key=None):
-        """
-        Initialize LLM client.
-        
-        Args:
-            provider: 'gemini', 'groq', or 'together'
-            api_key: API key (or reads from environment)
-        """
         self.provider = provider.lower()
         
         if self.provider == 'gemini':
@@ -141,17 +134,7 @@ Urgency: [urgency level]"""
             return self.process_complaint_together(complaint_text)
     
     def process_batch(self, complaints, batch_size=10, delay=1.0):
-        """
-        Process multiple complaints with rate limiting.
-        
-        Args:
-            complaints: List of complaint texts
-            batch_size: Number to process before delay
-            delay: Seconds to wait between batches
-        
-        Returns:
-            List of dicts with summary, category, urgency
-        """
+        """Process multiple complaints with rate limiting."""
         results = []
         total = len(complaints)
         
@@ -170,27 +153,14 @@ Urgency: [urgency level]"""
 
 
 def summarize_complaints(df, text_column='complaint_text', provider='gemini', batch_size=10):
-    """
-    Add LLM-generated summaries, categories, and urgency to dataframe.
-    
-    Args:
-        df: DataFrame with complaints
-        text_column: Column containing complaint text
-        provider: 'gemini' or 'groq'
-        batch_size: Batch size for processing
-    
-    Returns:
-        DataFrame with added columns
-    """
+    """Add LLM summaries, categories, and urgency to dataframe."""
     summarizer = LLMSummarizer(provider=provider)
     
-    # Process complaints
     results = summarizer.process_batch(
         df[text_column].tolist(),
         batch_size=batch_size
     )
     
-    # Add results to dataframe
     df['llm_summary'] = [r['summary'] for r in results]
     df['llm_category'] = [r['category'] for r in results]
     df['llm_urgency'] = [r['urgency'] for r in results]
@@ -201,11 +171,11 @@ def summarize_complaints(df, text_column='complaint_text', provider='gemini', ba
 if __name__ == "__main__":
     import pandas as pd
     
-    # Example usage with a small sample
+    # Quick test
     df = pd.read_csv("../data/processed/processed_complaints.csv")
     df_sample = df.head(20)
     
-    # Try with Gemini
+
     df_sample = summarize_complaints(df_sample, provider='gemini', batch_size=5)
     
     print("\nSample results:")

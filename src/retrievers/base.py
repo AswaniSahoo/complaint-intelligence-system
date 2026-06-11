@@ -1,9 +1,4 @@
-"""
-Base retriever interface for complaint search strategies.
-
-All retriever implementations must inherit from BaseRetriever and implement
-the build_index() and retrieve() methods.
-"""
+"""Base retriever interface. All retrievers inherit from BaseRetriever."""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -42,54 +37,24 @@ class BaseRetriever(ABC):
 
     @abstractmethod
     def build_index(self, df, embeddings=None, **kwargs):
-        """
-        Build the retrieval index from complaint data.
-
-        Args:
-            df: DataFrame with at least 'clean_text', 'complaint_text',
-                'product', 'issue', 'date' columns.
-            embeddings: Optional numpy array of precomputed embeddings
-                        (not all retrievers need this).
-        """
+        """Build the retrieval index from complaint data."""
         pass
 
     @abstractmethod
     def retrieve(self, query: str, k: int = 5) -> List[RetrievalResult]:
-        """
-        Retrieve the top-k most relevant complaints for a query.
-
-        Args:
-            query: Natural language search query.
-            k: Number of results to return.
-
-        Returns:
-            List of RetrievalResult objects, ordered by relevance (best first).
-        """
+        """Retrieve top-k relevant complaints for a query."""
         pass
 
     def retrieve_with_timing(self, query: str, k: int = 5):
-        """
-        Retrieve results and measure latency.
-
-        Returns:
-            tuple: (List[RetrievalResult], latency_ms: float)
-        """
+        """Retrieve results and return (results, latency_ms)."""
         start = time.perf_counter()
         results = self.retrieve(query, k)
         latency_ms = (time.perf_counter() - start) * 1000
         return results, latency_ms
 
     def _build_result(self, row, score: float, rank: int,
-                      extra_metadata: Optional[Dict] = None) -> RetrievalResult:
-        """
-        Helper to build a RetrievalResult from a DataFrame row.
-
-        Args:
-            row: pandas Series (a single row from the complaints DataFrame).
-            score: Relevance score from the retriever.
-            rank: Position in the result list (1-indexed).
-            extra_metadata: Optional dict of additional metadata.
-        """
+                      extra_metadata=None):
+        """Build a RetrievalResult from a DataFrame row."""
         metadata = {}
         if "cluster" in row.index:
             metadata["cluster"] = int(row["cluster"]) if not isinstance(row["cluster"], float) else None

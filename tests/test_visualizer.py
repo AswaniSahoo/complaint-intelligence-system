@@ -1,4 +1,4 @@
-"""Tests for src/visualizer.py — EmbeddingVisualizer."""
+"""Tests for src/visualizer.py | EmbeddingVisualizer."""
 
 import pytest
 import numpy as np

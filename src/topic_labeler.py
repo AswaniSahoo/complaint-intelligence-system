@@ -1,11 +1,7 @@
 """
 LLM-based topic labeler for BERTopic clusters.
-
-Uses Gemini (or OpenRouter / HuggingFace fallback) to generate
-human-readable topic labels from c-TF-IDF keywords, replacing
-the raw keyword strings with concise, meaningful names.
-
-Labels are cached to disk to avoid redundant API calls.
+Uses Gemini to turn c-TF-IDF keywords into readable topic names.
+Labels are cached to disk.
 """
 
 import json
@@ -34,12 +30,6 @@ class TopicLabeler:
     """Generate human-readable topic labels from cluster keywords using an LLM."""
 
     def __init__(self, provider="gemini", api_key=None, cache_path=None):
-        """
-        Args:
-            provider: LLM provider ("gemini", "openrouter", or "huggingface").
-            api_key: API key (or reads from environment).
-            cache_path: Path to cache file for labels. If None, caching is disabled.
-        """
         self.provider = provider.lower()
         self.cache_path = cache_path
         self._cache = self._load_cache()
@@ -70,17 +60,9 @@ class TopicLabeler:
             with open(self.cache_path, "w") as f:
                 json.dump(self._cache, f, indent=2)
 
-    def label_topic(self, keywords: List[str]) -> str:
-        """
-        Generate a label for a single topic from its keywords.
-
-        Args:
-            keywords: List of keywords (or list of (word, score) tuples).
-
-        Returns:
-            Human-readable topic label string.
-        """
-        # Handle (word, score) tuples from BERTopic
+    def label_topic(self, keywords):
+        """Generate a label for a single topic from its keywords."""
+        # Unpack (word, score) tuples if present
         if keywords and isinstance(keywords[0], (list, tuple)):
             keyword_strs = [w for w, _ in keywords]
         else:
@@ -99,7 +81,7 @@ class TopicLabeler:
                 model=self.model_name, contents=prompt
             )
             label = response.text.strip().strip('"').strip("'")
-            # Sanity check: label should be short
+            # Keep it short
             if len(label) > 60:
                 label = label[:60].rsplit(" ", 1)[0]
         except Exception as e:
@@ -111,19 +93,8 @@ class TopicLabeler:
 
         return label
 
-    def label_all_topics(self, topic_keywords: Dict[int, list],
-                         delay: float = 0.5) -> Dict[int, str]:
-        """
-        Generate labels for all topics.
-
-        Args:
-            topic_keywords: Dict mapping topic_id to list of keywords
-                            (from BERTopicClusterer.get_topic_keywords()).
-            delay: Seconds to wait between API calls (rate limiting).
-
-        Returns:
-            Dict mapping topic_id to human-readable label string.
-        """
+    def label_all_topics(self, topic_keywords, delay=0.5):
+        """Generate labels for all topics. Returns dict of topic_id -> label."""
         labels = {}
         total = len(topic_keywords)
 
@@ -144,17 +115,16 @@ class TopicLabeler:
         print(f"TopicLabeler: generated {len(labels)} labels")
         return labels
 
-    def save_labels(self, labels: Dict[int, str], output_path: str):
+    def save_labels(self, labels, output_path):
         """Save topic labels to JSON."""
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        # Convert int keys to strings for JSON
         serializable = {str(k): v for k, v in labels.items()}
         with open(output_path, "w") as f:
             json.dump(serializable, f, indent=2)
         print(f"Topic labels saved to {output_path}")
 
     @staticmethod
-    def load_labels(input_path: str) -> Dict[int, str]:
+    def load_labels(input_path):
         """Load topic labels from JSON."""
         with open(input_path, "r") as f:
             data = json.load(f)

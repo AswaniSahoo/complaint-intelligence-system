@@ -1,4 +1,4 @@
-"""Edge case tests — null inputs, malformed data, boundary conditions."""
+"""Edge case tests | null inputs, malformed data, boundary conditions."""
 
 import pytest
 import pandas as pd

@@ -1,4 +1,4 @@
-"""Tests for src/clustering.py — KMeansClusterer, ClusterComparison."""
+"""Tests for src/clustering.py | KMeansClusterer, ClusterComparison."""
 
 import pytest
 import numpy as np

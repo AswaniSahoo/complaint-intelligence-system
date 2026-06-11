@@ -12,14 +12,14 @@ ENV/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
-# Data
-# *.csv  # Commented out - we need processed data for deployment
-# *.npy  # Commented out - we need embeddings for deployment
+# Data - large files
 *.pkl
 *.pickle
-
-# But ignore raw data that's too large
 data/raw/*.csv
+data/full_200k_backup/
+data/processed/embeddings_bge.npy
+data/processed/embeddings_200k.npy
+data/processed/processed_complaints_200k.csv
 
 # Models
 *.h5

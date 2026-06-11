@@ -15,13 +15,6 @@ class ComplaintRAG:
     """Retrieval-Augmented Generation system for complaint search."""
     
     def __init__(self, embeddings=None, embedding_dim=384):
-        """
-        Initialize RAG system.
-        
-        Args:
-            embeddings: numpy array of complaint embeddings
-            embedding_dim: Dimension of embeddings
-        """
         self.embedding_dim = embedding_dim
         self.index = None
         self.df = None
@@ -30,43 +23,26 @@ class ComplaintRAG:
             self.build_index(embeddings)
     
     def build_index(self, embeddings):
-        """
-        Build FAISS index from embeddings.
-        
-        Args:
-            embeddings: numpy array of embeddings
-        """
+        """Build FAISS index from embeddings."""
         print(f"Building FAISS index with {len(embeddings)} vectors...")
         
-        # Normalize embeddings for cosine similarity
+        # Normalize for cosine similarity
         embeddings = embeddings.astype('float32')
         faiss.normalize_L2(embeddings)
         
-        # Create index
         self.index = faiss.IndexFlatIP(self.embedding_dim)
         self.index.add(embeddings)
         
         print(f"FAISS index built with {self.index.ntotal} vectors")
     
     def search(self, query_embedding, k=5):
-        """
-        Search for similar complaints.
-        
-        Args:
-            query_embedding: Embedding vector for the query
-            k: Number of results to return
-        
-        Returns:
-            distances, indices of top-k similar complaints
-        """
+        """Search for k most similar complaints. Returns (distances, indices)."""
         if self.index is None:
             raise ValueError("Index not built. Call build_index first.")
         
-        # Normalize query
         query_embedding = query_embedding.astype('float32').reshape(1, -1)
         faiss.normalize_L2(query_embedding)
         
-        # Search
         distances, indices = self.index.search(query_embedding, k)
         
         return distances[0], indices[0]
@@ -87,41 +63,19 @@ class ComplaintQA:
     """Question-answering system over complaints."""
     
     def __init__(self, rag_system, embedder, df, llm_summarizer=None):
-        """
-        Initialize QA system.
-        
-        Args:
-            rag_system: ComplaintRAG instance
-            embedder: ComplaintEmbedder instance
-            df: DataFrame with complaints
-            llm_summarizer: LLMSummarizer instance (optional)
-        """
         self.rag = rag_system
         self.embedder = embedder
         self.df = df
         self.llm = llm_summarizer
     
     def answer_query(self, query, k=5, return_full_context=False):
-        """
-        Answer a natural language query about complaints.
-        
-        Args:
-            query: Natural language question
-            k: Number of complaints to retrieve
-            return_full_context: Return full complaint texts
-        
-        Returns:
-            dict with query, retrieved complaints, and optional summary
-        """
+        """Search complaints by query. Returns dict with results."""
         print(f"Searching for: '{query}'")
         
-        # Encode query
         query_embedding = self.embedder.encode([query], show_progress=False)[0]
         
-        # Search
         distances, indices = self.rag.search(query_embedding, k=k)
         
-        # Get results
         results = []
         for dist, idx in zip(distances, indices):
             complaint = self.df.iloc[idx]
@@ -133,7 +87,7 @@ class ComplaintQA:
                 'similarity': float(dist)
             }
             
-            # Add LLM fields if available
+
             if 'llm_summary' in complaint.index and pd.notna(complaint.get('llm_summary')):
                 result['summary'] = complaint['llm_summary']
                 result['category'] = complaint.get('llm_category', 'Other')
@@ -150,20 +104,11 @@ class ComplaintQA:
         return response
     
     def get_insights(self, query, k=10):
-        """
-        Get insights and patterns from retrieved complaints.
-        
-        Args:
-            query: Natural language query
-            k: Number of complaints to analyze
-        
-        Returns:
-            dict with patterns and statistics
-        """
+        """Get aggregate patterns from top-k results."""
         response = self.answer_query(query, k=k)
         results = response['results']
         
-        # Extract patterns
+
         products = [r['product'] for r in results]
         issues = [r['issue'] for r in results]
         
@@ -185,28 +130,13 @@ class ComplaintQA:
 
 
 def build_rag_system(embeddings, df, embedding_dim=384):
-    """
-    Build complete RAG system.
-    
-    Args:
-        embeddings: numpy array of embeddings
-        df: DataFrame with complaints
-        embedding_dim: Embedding dimension
-    
-    Returns:
-        ComplaintRAG instance
-    """
+    """Build a ComplaintRAG instance with FAISS index."""
     rag = ComplaintRAG(embeddings, embedding_dim)
     return rag
 
 
 class RetrieverQA:
-    """
-    Unified QA system that works with any BaseRetriever implementation.
-
-    This is the recommended interface for new code — it wraps any retriever
-    and provides a consistent answer_query / get_insights API.
-    """
+    """Unified QA system that works with any BaseRetriever."""
 
     def __init__(self, retriever: BaseRetriever, df: pd.DataFrame):
         self.retriever = retriever
@@ -259,7 +189,7 @@ if __name__ == "__main__":
     df = pd.read_csv(data_path)
     embeddings = np.load(emb_path)
 
-    # Build RAG (legacy)
+    # Quick test with legacy API
     rag = build_rag_system(embeddings, df)
     embedder = ComplaintEmbedder()
     qa = ComplaintQA(rag, embedder, df)

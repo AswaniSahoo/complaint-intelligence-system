@@ -1,15 +1,10 @@
 """
-Clustering module for complaint text.
+Clustering module.
 
-Provides two clustering strategies for old-vs-new comparison:
-    - KMeansClusterer: Fixed-k centroid clustering (baseline, 2022-era)
-    - BERTopicClusterer: UMAP + HDBSCAN + c-TF-IDF topic modeling (SOTA, 2024-era)
-    - ClusterComparison: Side-by-side quality metrics
-
-Cluster quality metrics:
-    - Silhouette Score
-    - Calinski-Harabasz Index
-    - Davies-Bouldin Index
+Two strategies:
+    - KMeansClusterer: fixed-k centroid clustering
+    - BERTopicClusterer: UMAP + HDBSCAN + c-TF-IDF topic modeling
+    - ClusterComparison: quality metrics for both
 """
 
 import logging
@@ -30,34 +25,17 @@ import pickle
 logger = logging.getLogger(__name__)
 
 
-# -- KMeans Clusterer (baseline) -----------------------------------------------
-
 class KMeansClusterer:
-    """Cluster complaints using KMeans and extract keywords (baseline method)."""
+    """Cluster complaints using KMeans and extract keywords with TF-IDF."""
     
     def __init__(self, n_clusters=6, random_state=42):
-        """
-        Initialize clusterer.
-        
-        Args:
-            n_clusters: Number of clusters
-            random_state: Random seed for reproducibility
-        """
         self.n_clusters = n_clusters
         self.random_state = random_state
         self.kmeans = None
         self.cluster_labels = None
     
     def fit_predict(self, embeddings):
-        """
-        Fit KMeans and predict cluster labels.
-        
-        Args:
-            embeddings: numpy array of embeddings
-        
-        Returns:
-            cluster labels array
-        """
+        """Fit KMeans and return cluster labels."""
         print(f"Clustering {len(embeddings)} complaints into {self.n_clusters} clusters...")
         self.kmeans = KMeans(
             n_clusters=self.n_clusters,
@@ -65,8 +43,7 @@ class KMeansClusterer:
             n_init=10
         )
         self.cluster_labels = self.kmeans.fit_predict(embeddings)
-        
-        # Print cluster distribution
+
         unique, counts = np.unique(self.cluster_labels, return_counts=True)
         print("\nCluster distribution:")
         for cluster_id, count in zip(unique, counts):
@@ -75,29 +52,17 @@ class KMeansClusterer:
         return self.cluster_labels
     
     def extract_keywords(self, df, text_column='clean_text', top_n=10):
-        """
-        Extract top keywords for each cluster using TF-IDF.
-        
-        Args:
-            df: DataFrame with text and cluster labels
-            text_column: Column containing text
-            top_n: Number of top keywords per cluster
-        
-        Returns:
-            dict mapping cluster_id to list of keywords
-        """
+        """Extract top TF-IDF keywords per cluster."""
         print(f"\nExtracting top {top_n} keywords per cluster...")
         cluster_keywords = {}
         
         for cluster_id in range(self.n_clusters):
-            # Get texts from this cluster
             cluster_texts = df[df['cluster'] == cluster_id][text_column].tolist()
             
             if len(cluster_texts) == 0:
                 cluster_keywords[cluster_id] = []
                 continue
-            
-            # Extract keywords using TF-IDF
+
             vectorizer = TfidfVectorizer(
                 max_features=top_n,
                 stop_words='english',
@@ -128,17 +93,8 @@ class KMeansClusterer:
         print(f"Model loaded from {input_path}")
 
 
-# -- BERTopic Clusterer (SOTA) ------------------------------------------------
-
 class BERTopicClusterer:
-    """Topic modeling using BERTopic (UMAP + HDBSCAN + c-TF-IDF).
-
-    Key advantages over KMeans:
-        - Discovers the number of topics automatically
-        - Handles noise/outliers (assigns -1 to noisy documents)
-        - Produces interpretable topic representations via c-TF-IDF
-        - Captures non-spherical, variable-density clusters
-    """
+    """Topic modeling using BERTopic (UMAP + HDBSCAN + c-TF-IDF)."""
 
     def __init__(self, min_cluster_size=50, min_samples=10,
                  umap_n_neighbors=15, umap_n_components=5,
@@ -164,16 +120,7 @@ class BERTopicClusterer:
         self.topic_info = None
 
     def fit_predict(self, texts, embeddings):
-        """
-        Fit BERTopic on precomputed embeddings and return topic labels.
-
-        Args:
-            texts: List of text strings (needed for c-TF-IDF).
-            embeddings: numpy array of precomputed embeddings.
-
-        Returns:
-            numpy array of topic labels (-1 = outlier/noise)
-        """
+        """Fit BERTopic and return topic labels. -1 means outlier."""
         from bertopic import BERTopic
         from umap import UMAP
         from hdbscan import HDBSCAN
@@ -233,12 +180,7 @@ class BERTopicClusterer:
         return np.array(self.topics)
 
     def get_topic_keywords(self, top_n=10):
-        """
-        Get keywords for each topic.
-
-        Returns:
-            dict mapping topic_id to list of (word, score) tuples
-        """
+        """Get keywords for each topic. Returns dict of topic_id -> [(word, score)]."""
         if self.topic_model is None:
             raise RuntimeError("Model not fitted. Call fit_predict() first.")
 
@@ -262,25 +204,13 @@ class BERTopicClusterer:
         print(f"BERTopic model saved to {output_path}")
 
 
-# -- Cluster Quality Comparison ------------------------------------------------
-
 class ClusterComparison:
     """Compare clustering quality metrics between KMeans and BERTopic."""
 
     @staticmethod
     def compute_metrics(embeddings, labels, method_name="unknown"):
-        """
-        Compute clustering quality metrics.
-
-        Args:
-            embeddings: numpy array of embeddings.
-            labels: array of cluster labels.
-            method_name: Name for logging.
-
-        Returns:
-            dict of metric name -> value
-        """
-        # Filter out outliers (label == -1) for metrics that require >= 2 clusters
+        """Compute silhouette, calinski-harabasz, and davies-bouldin."""
+        # Skip outliers (label == -1) for metrics
         valid_mask = labels >= 0
         valid_embeddings = embeddings[valid_mask]
         valid_labels = labels[valid_mask]
@@ -302,7 +232,7 @@ class ClusterComparison:
                 "davies_bouldin": None,
             }
 
-        # Sample for silhouette (expensive on large datasets)
+        # Subsample for silhouette (expensive on large N)
         sample_size = min(10000, len(valid_embeddings))
         if sample_size < len(valid_embeddings):
             rng = np.random.default_rng(42)
@@ -336,17 +266,7 @@ class ClusterComparison:
 
     @staticmethod
     def compare(embeddings, kmeans_labels, bertopic_labels):
-        """
-        Run metrics on both methods and return comparison.
-
-        Args:
-            embeddings: numpy array of embeddings.
-            kmeans_labels: KMeans cluster labels.
-            bertopic_labels: BERTopic topic labels.
-
-        Returns:
-            dict with "kmeans" and "bertopic" metric dicts
-        """
+        """Run metrics on both methods. Returns dict with both results."""
         km_metrics = ClusterComparison.compute_metrics(
             embeddings, kmeans_labels, "KMeans"
         )
@@ -365,35 +285,19 @@ class ClusterComparison:
         print(f"Cluster comparison saved to {output_path}")
 
 
-# -- Convenience functions (backward compatible) -------------------------------
-
 def cluster_complaints(df, embeddings, n_clusters=6, text_column='clean_text'):
-    """
-    Cluster complaints and extract keywords.
-    
-    Args:
-        df: DataFrame with complaints
-        embeddings: numpy array of embeddings
-        n_clusters: Number of clusters
-        text_column: Column containing text
-    
-    Returns:
-        DataFrame with cluster labels, dict of keywords
-    """
+    """Cluster complaints and extract keywords. Returns (df, keywords_dict)."""
     clusterer = KMeansClusterer(n_clusters=n_clusters)
-    
-    # Fit and predict
     cluster_labels = clusterer.fit_predict(embeddings)
     df['cluster'] = cluster_labels
-    
-    # Extract keywords
+
     cluster_keywords = clusterer.extract_keywords(df, text_column)
     
     return df, cluster_keywords
 
 
 if __name__ == "__main__":
-    # Example usage
+    # Quick test
     import os
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data_path = os.path.join(base_dir, "data", "processed", "processed_complaints.csv")
@@ -404,10 +308,6 @@ if __name__ == "__main__":
     
     df, keywords = cluster_complaints(df, embeddings, n_clusters=6)
     
-    # Save updated dataframe with clusters
-    df.to_csv(data_path, index=False)
-    
-    print(f"\nClustering complete!")
-    print(f"Keywords by cluster:")
+    print(f"\nDone. Keywords:")
     for cluster_id, kw_list in keywords.items():
         print(f"  Cluster {cluster_id}: {kw_list}")

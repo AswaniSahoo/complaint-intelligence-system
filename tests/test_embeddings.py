@@ -1,4 +1,4 @@
-"""Tests for src/embeddings.py — EmbeddingRegistry and model config."""
+"""Tests for src/embeddings.py | EmbeddingRegistry and model config."""
 
 import pytest
 from src.embeddings import EMBEDDING_MODELS, EmbeddingRegistry

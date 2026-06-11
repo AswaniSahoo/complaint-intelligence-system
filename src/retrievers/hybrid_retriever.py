@@ -1,11 +1,4 @@
-"""
-Hybrid Retriever — Ensemble of Vector + BM25 with Reciprocal Rank Fusion.
-
-Combines the strengths of dense semantic search (captures meaning) and
-sparse keyword search (captures exact terms) by merging their ranked
-result lists using RRF.  This is one of the most effective retrieval
-strategies in practice.
-"""
+"""Hybrid retriever: Vector + BM25 merged via Reciprocal Rank Fusion (RRF)."""
 
 import logging
 from typing import List, Dict
@@ -24,20 +17,8 @@ def reciprocal_rank_fusion(
     ranked_lists: List[List[RetrievalResult]],
     k: int = 60,
 ) -> List[RetrievalResult]:
-    """
-    Merge multiple ranked result lists using Reciprocal Rank Fusion (RRF).
-
-    RRF score for document d = sum over lists L: 1 / (k + rank_L(d))
-
-    Args:
-        ranked_lists: List of result lists from different retrievers.
-        k: RRF constant (default 60, as in the original paper).
-
-    Returns:
-        Merged and re-ranked list of RetrievalResult.
-    """
-    # Map document text → aggregated RRF score and best result object
-    scores: Dict[str, float] = {}
+    """Merge ranked lists using RRF. Score = sum(1 / (k + rank))."""
+    scores = {}
     best_result: Dict[str, RetrievalResult] = {}
 
     for result_list in ranked_lists:
@@ -50,7 +31,6 @@ def reciprocal_rank_fusion(
             if doc_key not in best_result or result.score > best_result[doc_key].score:
                 best_result[doc_key] = result
 
-    # Sort by fused score descending
     sorted_keys = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
 
     fused_results: List[RetrievalResult] = []
@@ -69,37 +49,19 @@ class HybridRetriever(BaseRetriever):
 
     name = "hybrid"
 
-    def __init__(self, vector_retriever: VectorRetriever, bm25_retriever: BM25Retriever,
-                 rrf_k: int = 60):
-        """
-        Args:
-            vector_retriever: Pre-configured VectorRetriever instance.
-            bm25_retriever: Pre-configured BM25Retriever instance.
-            rrf_k: RRF constant (default 60).
-        """
+    def __init__(self, vector_retriever, bm25_retriever, rrf_k=60):
         self.vector_retriever = vector_retriever
         self.bm25_retriever = bm25_retriever
         self.rrf_k = rrf_k
 
-    def build_index(self, df: pd.DataFrame, embeddings: np.ndarray = None, **kwargs):
-        """
-        Build indices for both sub-retrievers.
-
-        Args:
-            df: Complaints DataFrame.
-            embeddings: Precomputed embeddings (passed to VectorRetriever).
-        """
+    def build_index(self, df, embeddings=None, **kwargs):
+        """Build indices for both sub-retrievers."""
         self.vector_retriever.build_index(df, embeddings, **kwargs)
         self.bm25_retriever.build_index(df, **kwargs)
         logger.info("HybridRetriever: both sub-indices built")
 
-    def retrieve(self, query: str, k: int = 5) -> List[RetrievalResult]:
-        """
-        Retrieve top-k by running both retrievers and fusing with RRF.
-
-        Each sub-retriever fetches 2*k candidates to ensure enough
-        diversity after fusion.
-        """
+    def retrieve(self, query, k=5):
+        """Retrieve top-k by fusing Vector + BM25 results with RRF."""
         if not query or not query.strip():
             logger.warning("HybridRetriever: empty query received")
             return []

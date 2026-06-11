@@ -14,7 +14,7 @@ def sample_df():
     """Load a small slice of the processed complaints for testing."""
     path = DATA_DIR / "processed_complaints.csv"
     if not path.exists():
-        pytest.skip("processed_complaints.csv not found — run pipeline first")
+        pytest.skip("processed_complaints.csv not found - run pipeline first")
     df = pd.read_csv(path, nrows=500)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     return df
@@ -25,7 +25,7 @@ def sample_embeddings():
     """Load a small slice of embeddings matching sample_df."""
     path = DATA_DIR / "embeddings.npy"
     if not path.exists():
-        pytest.skip("embeddings.npy not found — run pipeline first")
+        pytest.skip("embeddings.npy not found - run pipeline first")
     return np.load(path)[:500]
 
 
