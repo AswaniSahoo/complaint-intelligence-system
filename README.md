@@ -2,6 +2,12 @@
 
 An NLP pipeline that processes 200K consumer complaints from the CFPB database, comparing older and newer techniques for embedding, clustering, and retrieval.
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://complaint-intelligence-system.streamlit.app/)
+&nbsp;&nbsp;
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**Live Interactive Dashboard:** [complaint-intelligence-system.streamlit.app](https://complaint-intelligence-system.streamlit.app/)
+
 ![Overview](screenshots/overview.png)
 
 ## What it does
@@ -12,6 +18,53 @@ The pipeline compares:
 - **Embeddings**: MiniLM (384d, fast) vs BGE (768d, more accurate)
 - **Clustering**: KMeans (fixed k) vs BERTopic (auto-discovers topics)
 - **Retrieval**: Vector search, BM25, hybrid, and reranked hybrid
+
+## System Architecture
+
+```mermaid
+graph TD
+    A[CFPB Raw Data] -->|run_pipeline.py| B[Text Cleaning & Preprocessing]
+    
+    subgraph Clustering Subsystem
+        B --> E1[KMeans Clustering]
+        B --> E2[BERTopic Pipeline]
+        E2 --> E2a[UMAP Dimension Reduction]
+        E2a --> E2b[HDBSCAN Density Clustering]
+    end
+
+    subgraph Embedding Subsystem
+        B --> C1[all-MiniLM-L6-v2]
+        B --> C2[bge-base-en-v1.5]
+    end
+    
+    C1 & C2 --> G[FAISS Dense Index]
+    B --> H[BM25 Sparse Index]
+    
+    subgraph Retrieval Pipeline
+        G & H --> I[Hybrid Search]
+        I -->|Reciprocal Rank Fusion| J[Candidate Generation]
+        J -->|Cross-Encoder Reranker| K[Reranked Top Results]
+    end
+    
+    K --> L[LLM Summarizer / RAG Context]
+    L --> M[Streamlit Web Dashboard]
+```
+
+## Key Engineering Decisions & Insights
+
+### 1. Sparse vs. Dense Retrieval (BM25 vs. FAISS)
+* **FAISS (Dense)** provides conceptual matching (e.g., searching for *"stolen card"* retrieves complaints mentioning *"unauthorized charge"* or *"lost wallet"*), and runs under **35ms**. However, it suffers from keyword mismatch.
+* **BM25 (Sparse)** guarantees matches for specific product terms, account numbers, or unique company names but misses conceptual synonyms and suffers from Python search overhead (~580ms).
+* **Hybrid Reranked Retrieval** solves this by using BM25 and FAISS for fast candidate generation, then ranking results with `MS-MARCO-MiniLM-L-6-v2`. This delivers the highest precision results at the cost of ~300ms additional latency.
+
+### 2. Embedding Trade-offs: Throughput vs. Semantic Quality
+* **MiniLM** (384-dimensions) achieves high throughput (**374.6 texts/sec**), making it highly scalable for real-time applications.
+* **BGE** (768-dimensions) has a lower throughput (**59.7 texts/sec**) but achieves significantly higher intra-cluster coherence (**0.77** vs. **0.53**).
+* **Alignment Analysis**: The two embedding spaces only share **38.5% of their top-10 nearest neighbors** for any given complaint. This confirms that higher-dimensional models capture structurally different semantic relationships than smaller ones.
+
+### 3. Clustering Mechanics: Forced Partitioning vs. Density-Based
+* **KMeans** forces every complaint into a group, which guarantees coverage but creates high intra-cluster variance on messy, real-world data.
+* **BERTopic** leverages HDBSCAN to isolate only dense, high-confidence topic regions, filtering out **55%** of the complaints as outliers/noise. This honest approach produces highly distinct clusters for the remaining data, which we auto-labeled using Gemini.
 
 ## Results
 
